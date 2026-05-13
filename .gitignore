@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+ClaudeUsageBar.app/
+dist/
+.DS_Store
+*.p12
+*.pem

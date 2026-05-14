@@ -167,11 +167,6 @@ private struct UsageRow: View {
     }
 }
 
-extension Color {
-    /// Claude's brand blue — same hue claude.ai uses for usage bars.
-    static let claudeBlue = Color(red: 0.235, green: 0.357, blue: 0.898)
-}
-
 // MARK: - Capsule bar
 
 private struct CapsuleBar: View {

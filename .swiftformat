@@ -1,0 +1,20 @@
+# swift-format config — run with `swiftformat .` if you use it.
+# Kept intentionally close to Swift defaults so contributions from any
+# editor don't churn the diff.
+
+--swiftversion 6.0
+--indent 4
+--maxwidth 100
+--wraparguments before-first
+--wrapparameters before-first
+--wrapcollections before-first
+--commas inline
+--semicolons never
+--trimwhitespace always
+--linebreaks lf
+--self remove
+--patternlet inline
+--stripunusedargs closure-only
+--header strip
+
+--disable trailingCommas

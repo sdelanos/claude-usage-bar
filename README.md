@@ -1,5 +1,10 @@
 # Claude Usage Bar
 
+[![CI](https://github.com/sdelanos/claude-usage-bar/actions/workflows/ci.yml/badge.svg)](https://github.com/sdelanos/claude-usage-bar/actions/workflows/ci.yml)
+[![Swift 6](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
+[![Platform](https://img.shields.io/badge/platform-macOS%2013%2B-blue.svg)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 A tiny macOS menu-bar app that shows your Claude API rate-limit usage at a
 glance. No accounts, no telemetry, no separate login — it reuses the OAuth
 token Claude Code already stored in your Keychain.
@@ -132,27 +137,50 @@ Claude Code interaction.
 swift test
 ```
 
-The test suite covers the rate-limit-header parser, which is the only
-non-trivial piece of pure logic in the codebase.
+35 tests across six suites covering every piece of pure logic — header
+parsing, JSON token extraction, threshold-crossing decisions, reset-time
+formatting, and the `Usage` helpers. SwiftUI views aren't unit-tested;
+manual verification is the standard for those.
 
 ## Layout
 
 ```
 Sources/ClaudeUsageBar/
-  ClaudeUsageBarApp.swift     # SwiftUI scene, menu-bar label
-  KeychainReader.swift        # Reads the Claude Code OAuth token
-  UsageClient.swift           # POST /v1/messages + header parser
-  UsageService.swift          # @MainActor store, refresh timer, state machine
-  LaunchAtLoginService.swift  # SMAppService toggle
-  NotificationService.swift   # 25 % / 10 % threshold notifications
-  MenuBarIcon.swift           # Template-icon loader
-  ResetFormatter.swift        # "in 32 min" / "Tue 06:00"
-  Models/Usage.swift          # Usage / Window / RepresentativeClaim / OverageStatus
-  Views/MenuContentView.swift # Dropdown UI
-  Resources/MenuBarIcon.png   # Template image, sourced from Claude.app
+  ClaudeUsageBarApp.swift              # SwiftUI scene, menu-bar label
+  Models/
+    Usage.swift                        # Window / RepresentativeClaim / OverageStatus
+  Services/
+    KeychainReader.swift               # Reads the Claude Code OAuth token
+    UsageClient.swift                  # POST /v1/messages + header parser
+    UsageService.swift                 # @MainActor store, refresh timer, state machine
+    LaunchAtLoginService.swift         # SMAppService toggle
+    NotificationService.swift          # 25 % / 10 % threshold notifications
+  Views/
+    MenuContentView.swift              # Dropdown UI
+  Helpers/
+    MenuBarIcon.swift                  # Template-icon loader
+    ResetFormatter.swift               # "in 32 min" / "Tue 06:00"
+    Colors.swift                       # Color.claudeBlue
+  Resources/
+    MenuBarIcon.png                    # Template image, sourced from Claude.app
+
 Tests/ClaudeUsageBarTests/
-  UsageClientTests.swift      # swift-testing suite (4 cases)
+  UsageClientTests.swift               # header parser
+  KeychainReaderTests.swift            # JSON token extraction
+  ResetFormatterTests.swift            # "in 32 min" vs "Tue 06:00"
+  UsageHelpersTests.swift              # humanOverageReason, displayPercent
+  NotificationDecisionTests.swift      # threshold-crossing rules
 ```
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) — design principles, style notes,
+testing expectations.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) — threat model, what the app does and
+doesn't touch, where to report a vulnerability.
 
 ## License
 

@@ -1,8 +1,15 @@
 import Foundation
 
-enum UsageClientError: Error, CustomStringConvertible, Equatable {
+/// Reasons a `UsageClient` call can fail.
+enum UsageClientError: Error, Equatable, CustomStringConvertible {
+    /// One or more required rate-limit headers were absent or unparseable.
+    /// The associated value lists every header that contributed to the
+    /// failure, so the user gets one diagnostic instead of N round-trips.
     case missingHeaders([String])
+    /// The Anthropic API returned a non-2xx response. The body is truncated
+    /// to 200 chars in the description so it stays readable in the UI.
     case httpError(Int, String)
+    /// `URLSession` handed us a response object that isn't HTTP.
     case invalidResponse
 
     var description: String {
@@ -18,22 +25,38 @@ enum UsageClientError: Error, CustomStringConvertible, Equatable {
     }
 }
 
+/// Fetches Claude API rate-limit information by sending the cheapest possible
+/// `POST /v1/messages` request and parsing the response headers.
+///
+/// The API doesn't expose a dedicated usage endpoint, but every messages
+/// response includes `anthropic-ratelimit-unified-*` headers describing the
+/// caller's 5-hour and 7-day utilization. A 1-token completion against
+/// `claude-haiku-4-5` costs a few tokens — negligible compared to a single
+/// chat interaction.
+///
+/// `parse(headers:at:)` is the pure logic and is unit-tested. `fetch(...)`
+/// wires it to `URLSession`.
 struct UsageClient {
+
     static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
 
-    // Header names
-    static let h5hUtil = "anthropic-ratelimit-unified-5h-utilization"
-    static let h5hReset = "anthropic-ratelimit-unified-5h-reset"
-    static let h5hStatus = "anthropic-ratelimit-unified-5h-status"
-    static let h7dUtil = "anthropic-ratelimit-unified-7d-utilization"
-    static let h7dReset = "anthropic-ratelimit-unified-7d-reset"
-    static let h7dStatus = "anthropic-ratelimit-unified-7d-status"
-    static let hRepresentative = "anthropic-ratelimit-unified-representative-claim"
-    static let hOverageStatus = "anthropic-ratelimit-unified-overage-status"
-    static let hOverageReason = "anthropic-ratelimit-unified-overage-disabled-reason"
+    // MARK: - Header names
 
-    /// Pure parser — testable without network. Throws `.missingHeaders` listing every required header that
-    /// was absent or unparseable, so failures are diagnosable in one shot.
+    static let h5hUtil         = "anthropic-ratelimit-unified-5h-utilization"
+    static let h5hReset        = "anthropic-ratelimit-unified-5h-reset"
+    static let h5hStatus       = "anthropic-ratelimit-unified-5h-status"
+    static let h7dUtil         = "anthropic-ratelimit-unified-7d-utilization"
+    static let h7dReset        = "anthropic-ratelimit-unified-7d-reset"
+    static let h7dStatus       = "anthropic-ratelimit-unified-7d-status"
+    static let hRepresentative = "anthropic-ratelimit-unified-representative-claim"
+    static let hOverageStatus  = "anthropic-ratelimit-unified-overage-status"
+    static let hOverageReason  = "anthropic-ratelimit-unified-overage-disabled-reason"
+
+    // MARK: - Parsing
+
+    /// Pure parser. Given an HTTP response, extracts a `Usage` snapshot or
+    /// throws `.missingHeaders` listing every required header that was
+    /// missing or unparseable.
     static func parse(headers response: HTTPURLResponse, at fetchedAt: Date) throws -> Usage {
         var missing: [String] = []
 
@@ -55,16 +78,14 @@ struct UsageClient {
             return raw
         }
 
-        let util5 = headerDouble(h5hUtil)
-        let reset5 = headerDouble(h5hReset)
-        let status5 = headerString(h5hStatus)
-        let util7 = headerDouble(h7dUtil)
-        let reset7 = headerDouble(h7dReset)
-        let status7 = headerString(h7dStatus)
-
-        // The representative claim and overage status are required to render meaningfully.
+        let util5            = headerDouble(h5hUtil)
+        let reset5           = headerDouble(h5hReset)
+        let status5          = headerString(h5hStatus)
+        let util7            = headerDouble(h7dUtil)
+        let reset7           = headerDouble(h7dReset)
+        let status7          = headerString(h7dStatus)
         let representativeRaw = headerString(hRepresentative)
-        let overageRaw = headerString(hOverageStatus)
+        let overageRaw       = headerString(hOverageStatus)
 
         if !missing.isEmpty {
             throw UsageClientError.missingHeaders(missing)
@@ -92,7 +113,15 @@ struct UsageClient {
         )
     }
 
-    /// Sends the cheapest possible message (1-token completion) and parses the rate-limit headers.
+    // MARK: - Network
+
+    /// Sends a 1-token completion to `claude-haiku-4-5` and parses the
+    /// rate-limit headers from the response. Throws `UsageClientError` on
+    /// transport / HTTP failures and the underlying parsing errors.
+    ///
+    /// - Parameters:
+    ///   - accessToken: OAuth bearer token from the Claude Code Keychain entry.
+    ///   - session: injection point for tests; defaults to `URLSession.shared`.
     func fetch(accessToken: String, session: URLSession = .shared) async throws -> Usage {
         var request = URLRequest(url: Self.endpoint)
         request.httpMethod = "POST"

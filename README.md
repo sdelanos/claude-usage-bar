@@ -14,40 +14,81 @@ token Claude Code already stored in your Keychain.
 Click the icon to see reset times, change refresh frequency, toggle launch
 at login, or quit.
 
+## Why build from source
+
+The short answer: macOS's Keychain ACL only persists `Always Allow` grants
+for apps with a **stable code-signing identity**. Ad-hoc signed binaries
+(the kind you can hand out without an Apple Developer account) get
+re-prompted for the Keychain password on every launch — even after you
+click "Always Allow".
+
+So instead of shipping a pre-built `.app`, this repo gives you a 30-second
+one-time setup that creates a local self-signed identity on your machine.
+After that, the Keychain prompt happens exactly once.
+
 ## Install
 
-### Option A — Drag-and-drop
-
-1. Grab the latest `ClaudeUsageBar.zip` from
-   [Releases](https://github.com/sdelanos/claude-usage-bar/releases).
-2. Unzip and drag `ClaudeUsageBar.app` into `/Applications`.
-3. First launch: right-click → **Open** → **Open**. (One-time Gatekeeper
-   warning because the app is ad-hoc signed, not Developer-ID notarized.)
-
-### Option B — Homebrew
-
-```sh
-brew tap sdelanos/claude-usage-bar
-brew install --cask claude-usage-bar
-```
-
-The cask drops the quarantine bit on install, so no right-click dance.
-The tap lives at [sdelanos/homebrew-claude-usage-bar](https://github.com/sdelanos/homebrew-claude-usage-bar).
-
-### Option C — Build from source
-
-See [Building](#building) below.
-
-## Requirements
+### Requirements
 
 - macOS 13 (Ventura) or later
-- [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed
-  and signed in on the same Mac — the app reads its OAuth token from the
-  `Claude Code-credentials` Keychain entry. If Claude Code isn't installed, the
-  menu bar will show `!` and the dropdown will tell you what's missing.
+- [Claude Code](https://docs.claude.com/en/docs/claude-code/overview)
+  installed and signed in — the app reads its OAuth token from the
+  `Claude Code-credentials` Keychain entry
+- A working Swift 6 toolchain (see [the toolchain note](#toolchain) below
+  if `swift build` fails)
 
-The first time the app launches, macOS will ask whether to grant access to
-the Keychain entry. Click **Always Allow**.
+### Steps
+
+```sh
+git clone https://github.com/sdelanos/claude-usage-bar.git
+cd claude-usage-bar
+
+# One-time: generate a local code-signing identity ("ClaudeUsageBar Dev")
+# so macOS will remember the Keychain "Always Allow" decision.
+./setup-cert.sh
+
+# Build the .app and sign it with the identity above.
+./build.sh
+
+# Move it to /Applications (so "Launch at login" survives a reboot).
+mv ClaudeUsageBar.app /Applications/
+
+open /Applications/ClaudeUsageBar.app
+```
+
+First launch: macOS asks once for Keychain access — click **Always Allow**.
+You'll never see the prompt again.
+
+### Updating
+
+```sh
+cd claude-usage-bar
+git pull
+killall ClaudeUsageBar
+./build.sh
+rm -rf /Applications/ClaudeUsageBar.app
+mv ClaudeUsageBar.app /Applications/
+open /Applications/ClaudeUsageBar.app
+```
+
+The code-signing identity from `setup-cert.sh` is reused across builds, so
+the Keychain grant stays valid.
+
+### Toolchain
+
+If `swift build` fails with an `Undefined symbols: Package.__allocating_init`
+or `redefinition of module 'SwiftBridging'` error, your CommandLineTools is
+in one of the known broken states recent macOS releases ship. Quickest fix
+is [Swiftly](https://www.swift.org/install/macos/):
+
+```sh
+curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg && \
+installer -pkg swiftly.pkg -target CurrentUserHomeDirectory && \
+~/.swiftly/bin/swiftly init --quiet-shell-followup && \
+. "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
+```
+
+Add `source ~/.swiftly/env.sh` to your shell rc to make it permanent.
 
 ## How it works
 
@@ -66,7 +107,7 @@ Claude Code interaction.
 - Dropdown with progress bars, reset times, and human-friendly overage messages
 - Configurable refresh interval (1 / 5 / 15 / 30 min)
 - Launch at login (via `SMAppService`)
-- Threshold notifications: every 25% on the 5h window, every 10% on the 7d
+- Threshold notifications: every 25 % on the 5h window, every 10 % on the 7d
 - Single ~300 KB binary, no background services, no analytics
 
 ## Privacy
@@ -77,43 +118,6 @@ Claude Code interaction.
 - The only thing the app persists locally (via `UserDefaults`) is your chosen
   refresh interval and the last notification threshold per window.
 - No background telemetry, no crash reporting, no analytics.
-
-## Building
-
-Requires a working Swift 6 toolchain.
-
-> **Heads-up.** If `swift build` fails with an `Undefined symbols:
-> Package.__allocating_init` or `redefinition of module 'SwiftBridging'` error,
-> you've hit one of the known CommandLineTools / SDK breakages in recent macOS
-> releases. The fastest fix is to install [Swiftly](https://www.swift.org/install/macos/):
->
-> ```sh
-> curl -O https://download.swift.org/swiftly/darwin/swiftly.pkg && \
-> installer -pkg swiftly.pkg -target CurrentUserHomeDirectory && \
-> ~/.swiftly/bin/swiftly init --quiet-shell-followup && \
-> . "${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/env.sh"
-> ```
->
-> Adding `source ~/.swiftly/env.sh` to your shell rc makes it permanent.
-
-Then:
-
-```sh
-git clone https://github.com/sdelanos/claude-usage-bar.git
-cd claude-usage-bar
-
-# Optional but recommended: create a stable local code-signing identity so
-# macOS doesn't re-prompt for Keychain access on every rebuild.
-./setup-cert.sh
-
-# Build + bundle .app
-./build.sh
-
-open ClaudeUsageBar.app
-```
-
-`./release.sh` produces a `dist/ClaudeUsageBar.zip` ready for upload to a
-GitHub Release.
 
 ## Tests
 
@@ -142,10 +146,6 @@ Sources/ClaudeUsageBar/
 Tests/ClaudeUsageBarTests/
   UsageClientTests.swift      # swift-testing suite (4 cases)
 ```
-
-The Homebrew cask formula lives in its own repo at
-[sdelanos/homebrew-claude-usage-bar](https://github.com/sdelanos/homebrew-claude-usage-bar);
-bump the version + SHA there each time you cut a release here.
 
 ## License
 

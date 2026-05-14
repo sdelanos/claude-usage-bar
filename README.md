@@ -28,51 +28,58 @@ After that, the Keychain prompt happens exactly once.
 
 ## Install
 
+```sh
+curl -fsSL https://raw.githubusercontent.com/sdelanos/claude-usage-bar/main/install.sh | bash
+```
+
+That's it. The script:
+
+1. Checks you're on macOS 13+ with a working Swift toolchain.
+2. Clones this repo into a temp directory.
+3. Installs (once) a local code-signing identity in your login keychain.
+4. Builds `ClaudeUsageBar.app`, signed with that identity.
+5. Moves it to `/Applications` and launches it.
+
+First launch: macOS asks once for Keychain access — click **Always Allow**.
+You'll never see the prompt again. To update later, re-run the same command.
+
+### Want to inspect first?
+
+Reasonable. The script is short and lives at
+[`install.sh`](install.sh). Read it, then run it locally with:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sdelanos/claude-usage-bar/main/install.sh > install.sh
+less install.sh
+bash install.sh
+```
+
 ### Requirements
 
-- macOS 13 (Ventura) or later
-- [Claude Code](https://docs.claude.com/en/docs/claude-code/overview)
-  installed and signed in — the app reads its OAuth token from the
-  `Claude Code-credentials` Keychain entry
-- A working Swift 6 toolchain (see [the toolchain note](#toolchain) below
-  if `swift build` fails)
+The install script verifies every one of these before doing anything, and
+exits with a clear error if any is missing.
 
-### Steps
+| What | Why | How to install |
+|---|---|---|
+| macOS 13+ (Ventura) | `MenuBarExtra` SwiftUI, `SMAppService` for "Launch at login" | — |
+| Xcode Command Line Tools | provides `git`, `codesign`, `security`, system `openssl` | `xcode-select --install` |
+| A working Swift 6 toolchain | `swift build` to compile the app | Comes with CLT, but if `swift build` errors with `Undefined symbols: Package.__allocating_init` or `redefinition of module 'SwiftBridging'`, install Swiftly (see [toolchain](#toolchain)) |
+| [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed & signed in | the app reads its OAuth token from the `Claude Code-credentials` Keychain entry | Required at runtime, not build time — the installer just warns if it's missing |
+
+Nothing else. No Xcode.app, no Apple Developer account, no Homebrew.
+
+### Manual install
+
+If you'd rather not pipe a script:
 
 ```sh
 git clone https://github.com/sdelanos/claude-usage-bar.git
 cd claude-usage-bar
-
-# One-time: generate a local code-signing identity ("ClaudeUsageBar Dev")
-# so macOS will remember the Keychain "Always Allow" decision.
 ./setup-cert.sh
-
-# Build the .app and sign it with the identity above.
 ./build.sh
-
-# Move it to /Applications (so "Launch at login" survives a reboot).
-mv ClaudeUsageBar.app /Applications/
-
-open /Applications/ClaudeUsageBar.app
-```
-
-First launch: macOS asks once for Keychain access — click **Always Allow**.
-You'll never see the prompt again.
-
-### Updating
-
-```sh
-cd claude-usage-bar
-git pull
-killall ClaudeUsageBar
-./build.sh
-rm -rf /Applications/ClaudeUsageBar.app
 mv ClaudeUsageBar.app /Applications/
 open /Applications/ClaudeUsageBar.app
 ```
-
-The code-signing identity from `setup-cert.sh` is reused across builds, so
-the Keychain grant stays valid.
 
 ### Toolchain
 

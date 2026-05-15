@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-05-15
+
+### Changed
+- CI release runner bumped from `macos-15` to `macos-26`. The shipped
+  binary now embeds an SDK-26 build version, so AppKit serves the
+  Tahoe-era SwiftUI styling instead of the macOS-15-era look. Without
+  this, `.controlSize(.small)` and friends rendered chunkier on macOS 26
+  than on the developer's local build — same source, different SDK
+  target. CI workflow follows the same bump.
+
 ## [0.2.1] - 2026-05-15
 
 ### Changed

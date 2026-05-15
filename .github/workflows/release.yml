@@ -11,7 +11,11 @@ permissions:
 jobs:
   build:
     name: Build & publish ClaudeUsageBar.app
-    runs-on: macos-15
+    # macos-26 ships Xcode 26 by default → the binary embeds an SDK-26 build
+    # version, so AppKit/SwiftUI serves the Tahoe-era look (Liquid Glass,
+    # current control sizes) when the cask is run on macOS 26. Building
+    # against an older SDK gives users the macOS-15-era look on Tahoe.
+    runs-on: macos-26
 
     steps:
       - uses: actions/checkout@v4

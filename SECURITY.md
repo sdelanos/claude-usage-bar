@@ -1,13 +1,5 @@
 # Security
 
-## Reporting a vulnerability
-
-Email **sebastien.delanos@akeneo.com** with the details. Please don't open
-a public GitHub issue for security-relevant bugs until a fix is shipped.
-
-I'll acknowledge within a few business days and aim to have a fix in
-`main` within two weeks for anything practically exploitable.
-
 ## Threat model
 
 Claude Usage Bar reads a single secret — a long-lived OAuth token minted

@@ -1,13 +1,12 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 /// Tests pin to `en_US_POSIX` so assertions on the relative-formatter
 /// prefix ("in …") and on the abbreviated-units shape are deterministic
 /// regardless of the CI runner's system locale.
 @Suite("ResetFormatter.format")
 struct ResetFormatterTests {
-
     private let now = Date(timeIntervalSince1970: 1_715_000_000)
     private let locale = Locale(identifier: "en_US_POSIX")
 
@@ -28,7 +27,7 @@ struct ResetFormatterTests {
         let out = ResetFormatter.format(in32Min, now: now, locale: locale)
         #expect(out.hasPrefix("in "))
         #expect(out.contains("32"))
-        #expect(!out.contains(":"))   // not the absolute branch
+        #expect(!out.contains(":")) // not the absolute branch
     }
 
     @Test("a few hours away uses hours + minutes")
@@ -45,8 +44,10 @@ struct ResetFormatterTests {
         let in13h = now.addingTimeInterval(13 * 3600)
         let out = ResetFormatter.format(in13h, now: now, locale: locale)
         #expect(!out.hasPrefix("in "))
-        #expect(out.range(of: #"\d{1,2}:\d{2}"#, options: .regularExpression) != nil,
-                "expected an HH:MM fragment, got '\(out)'")
+        #expect(
+            out.range(of: #"\d{1,2}:\d{2}"#, options: .regularExpression) != nil,
+            "expected an HH:MM fragment, got '\(out)'"
+        )
     }
 
     @Test("days-away reset still uses weekday + time")

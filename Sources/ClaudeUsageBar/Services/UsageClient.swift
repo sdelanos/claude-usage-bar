@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reasons a `UsageClient` call can fail.
-enum UsageClientError: Error, Equatable, Sendable, CustomStringConvertible {
+enum UsageClientError: Error, Equatable, CustomStringConvertible {
     /// One or more required rate-limit headers were absent or unparseable.
     /// The associated value lists every header that contributed to the
     /// failure, so the user gets one diagnostic instead of N round-trips.
@@ -22,13 +22,13 @@ enum UsageClientError: Error, Equatable, Sendable, CustomStringConvertible {
     var description: String {
         switch self {
         case .missingHeaders(let names):
-            return "Missing or unparseable headers: \(names.joined(separator: ", "))"
+            "Missing or unparseable headers: \(names.joined(separator: ", "))"
         case .unauthorized:
-            return "Token rejected (401). Re-run `claude setup-token` and paste the new token."
+            "Token rejected (401). Re-run `claude setup-token` and paste the new token."
         case .httpError(let code, _):
-            return "Anthropic returned HTTP \(code). Try again in a moment."
+            "Anthropic returned HTTP \(code). Try again in a moment."
         case .invalidResponse:
-            return "Anthropic returned an unexpected response shape."
+            "Anthropic returned an unexpected response shape."
         }
     }
 
@@ -36,7 +36,7 @@ enum UsageClientError: Error, Equatable, Sendable, CustomStringConvertible {
     var userFacing: UserFacingError {
         switch self {
         case .missingHeaders(let names):
-            return .init(
+            .init(
                 message: "Anthropic didn't return the expected rate-limit headers (\(names.count) missing). Try again.",
                 isRetryable: true
             )
@@ -44,17 +44,17 @@ enum UsageClientError: Error, Equatable, Sendable, CustomStringConvertible {
             // Should never reach the .error state — UsageService catches this
             // and transitions to .needsSetup(.tokenRejected). Included for
             // completeness only.
-            return .init(
+            .init(
                 message: "Token rejected. Re-run `claude setup-token`.",
                 isRetryable: false
             )
         case .httpError(let code, _):
-            return .init(
+            .init(
                 message: "Anthropic returned HTTP \(code). Try again in a moment.",
                 isRetryable: true
             )
         case .invalidResponse:
-            return .init(
+            .init(
                 message: "Unexpected response from Anthropic. Try again, or file an issue if it persists.",
                 isRetryable: true
             )
@@ -80,7 +80,6 @@ protocol UsageFetching: Sendable {
 /// `parse(headers:at:)` is the pure logic and is unit-tested.
 /// `fetch(accessToken:)` wires it to `URLSession`.
 struct UsageClient: UsageFetching {
-
     /// Hard-coded URL; failing this at first launch would be a build-time
     /// bug we want to catch in tests, not a runtime crash. We use an
     /// `_unsafelyUnwrapped`-equivalent guard and fall back to a sentinel
@@ -101,12 +100,12 @@ struct UsageClient: UsageFetching {
 
     // MARK: - Header names
 
-    static let h5hUtil         = "anthropic-ratelimit-unified-5h-utilization"
-    static let h5hReset        = "anthropic-ratelimit-unified-5h-reset"
-    static let h7dUtil         = "anthropic-ratelimit-unified-7d-utilization"
-    static let h7dReset        = "anthropic-ratelimit-unified-7d-reset"
-    static let hOverageStatus  = "anthropic-ratelimit-unified-overage-status"
-    static let hOverageReason  = "anthropic-ratelimit-unified-overage-disabled-reason"
+    static let h5hUtil = "anthropic-ratelimit-unified-5h-utilization"
+    static let h5hReset = "anthropic-ratelimit-unified-5h-reset"
+    static let h7dUtil = "anthropic-ratelimit-unified-7d-utilization"
+    static let h7dReset = "anthropic-ratelimit-unified-7d-reset"
+    static let hOverageStatus = "anthropic-ratelimit-unified-overage-status"
+    static let hOverageReason = "anthropic-ratelimit-unified-overage-disabled-reason"
 
     private let session: URLSession
     private let userAgent: String
@@ -119,7 +118,8 @@ struct UsageClient: UsageFetching {
     /// Defaults to `ClaudeUsageBar/<CFBundleShortVersionString>` so Anthropic
     /// can identify the polling client if they ever start segmenting traffic.
     static let defaultUserAgent: String = {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        let version = Bundle.main
+            .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
         return "ClaudeUsageBar/\(version) (+https://github.com/sdelanos/claude-usage-bar)"
     }()
 
@@ -133,7 +133,8 @@ struct UsageClient: UsageFetching {
 
         func headerDouble(_ name: String) -> Double? {
             guard let raw = response.value(forHTTPHeaderField: name),
-                  let value = Double(raw.trimmingCharacters(in: .whitespaces)) else {
+                  let value = Double(raw.trimmingCharacters(in: .whitespaces))
+            else {
                 missing.append(name)
                 return nil
             }
@@ -141,18 +142,20 @@ struct UsageClient: UsageFetching {
         }
 
         func headerString(_ name: String) -> String? {
-            guard let raw = response.value(forHTTPHeaderField: name)?.trimmingCharacters(in: .whitespaces),
-                  !raw.isEmpty else {
+            guard let raw = response.value(forHTTPHeaderField: name)?
+                .trimmingCharacters(in: .whitespaces),
+                !raw.isEmpty
+            else {
                 missing.append(name)
                 return nil
             }
             return raw
         }
 
-        let util5     = headerDouble(h5hUtil)
-        let reset5    = headerDouble(h5hReset)
-        let util7     = headerDouble(h7dUtil)
-        let reset7    = headerDouble(h7dReset)
+        let util5 = headerDouble(h5hUtil)
+        let reset5 = headerDouble(h5hReset)
+        let util7 = headerDouble(h7dUtil)
+        let reset7 = headerDouble(h7dReset)
         let overageRaw = headerString(hOverageStatus)
 
         guard let util5, let reset5, let util7, let reset7, let overageRaw else {
@@ -200,7 +203,7 @@ struct UsageClient: UsageFetching {
         if http.statusCode == 401 {
             throw UsageClientError.unauthorized
         }
-        guard (200..<300).contains(http.statusCode) else {
+        guard (200 ..< 300).contains(http.statusCode) else {
             // Body is kept for debugDescription / Logger, not for UI.
             let debugBody = String(data: data.prefix(2048), encoding: .utf8) ?? ""
             throw UsageClientError.httpError(status: http.statusCode, debugBody: debugBody)

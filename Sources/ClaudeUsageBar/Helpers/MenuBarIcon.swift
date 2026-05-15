@@ -17,7 +17,8 @@ enum MenuBarIcon {
     static func image(size: CGFloat) -> NSImage? {
         if let cached = cache[size] { return cached }
         guard let url = Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png"),
-              let image = NSImage(contentsOf: url) else {
+              let image = NSImage(contentsOf: url)
+        else {
             return nil
         }
         image.isTemplate = true

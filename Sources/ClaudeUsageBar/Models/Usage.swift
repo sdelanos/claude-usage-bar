@@ -5,10 +5,9 @@ import Foundation
 ///
 /// Pure value type — no SwiftUI dependencies, no I/O. The actual decoding
 /// lives in `UsageClient.parse(headers:at:)`.
-struct Usage: Equatable, Sendable {
-
+struct Usage: Equatable {
     /// One rolling-window slice — either the 5-hour session or the 7-day total.
-    struct Window: Equatable, Sendable {
+    struct Window: Equatable {
         /// Fraction of the limit already consumed, clamped by the API to `[0, 1]`.
         let utilization: Double
         /// Wall-clock moment the window resets and `utilization` returns to 0.
@@ -22,7 +21,7 @@ struct Usage: Equatable, Sendable {
     }
 
     /// Whether the account is currently allowed to spend beyond the quota.
-    enum OverageStatus: Equatable, Sendable {
+    enum OverageStatus: Equatable {
         case allowed
         case rejected
         /// Forward-compat for future API values.
@@ -30,9 +29,9 @@ struct Usage: Equatable, Sendable {
 
         init(rawValue: String) {
             switch rawValue {
-            case "allowed":  self = .allowed
+            case "allowed": self = .allowed
             case "rejected": self = .rejected
-            default:         self = .other(rawValue)
+            default: self = .other(rawValue)
             }
         }
     }
@@ -55,11 +54,11 @@ struct Usage: Equatable, Sendable {
     var humanOverageReason: String {
         switch overageDisabledReason {
         case "group_zero_credit_limit":
-            return "Your organization hasn't enabled overage credits."
+            "Your organization hasn't enabled overage credits."
         case "personal_zero_credit_limit", "user_zero_credit_limit":
-            return "You haven't enabled overage credits on your account."
+            "You haven't enabled overage credits on your account."
         default:
-            return "Overage isn't allowed on your current plan."
+            "Overage isn't allowed on your current plan."
         }
     }
 }

@@ -13,7 +13,6 @@ import SwiftUI
 /// happens here.
 @MainActor
 final class UsageService: ObservableObject {
-
     /// What the UI shows. Equatable so SwiftUI can diff it cheaply.
     enum State: Equatable {
         case loading
@@ -23,7 +22,7 @@ final class UsageService: ObservableObject {
         case error(UserFacingError)
     }
 
-    enum SetupReason: Equatable, Sendable {
+    enum SetupReason: Equatable {
         /// First launch (or after `signOut()`): no token has ever been saved.
         case notConfigured
         /// The API returned 401 — the cached token is expired or revoked.
@@ -81,7 +80,7 @@ final class UsageService: ObservableObject {
         // picked manual-only / 0" (→ keep as 0). Reading via `double` gives
         // `0` for both; `object(forKey:) as? Double` is `nil` for unset.
         let saved = UserDefaults.standard.object(forKey: Self.intervalKey) as? Double
-        self.refreshIntervalSeconds = Self.normalizedInterval(fromStoredValue: saved)
+        refreshIntervalSeconds = Self.normalizedInterval(fromStoredValue: saved)
     }
 
     /// Production wiring. Tests should use the designated init.
@@ -102,9 +101,9 @@ final class UsageService: ObservableObject {
         bootstrapTask?.cancel()
         bootstrapTask = Task { [weak self] in
             guard let self else { return }
-            await self.bootstrapNotifications()
-            await self.refresh()
-            self.schedulePollLoop()
+            await bootstrapNotifications()
+            await refresh()
+            schedulePollLoop()
         }
     }
 
@@ -188,7 +187,7 @@ final class UsageService: ObservableObject {
         pollTask = nil
 
         let interval = Self.normalizedInterval(fromStoredValue: refreshIntervalSeconds)
-        guard interval >= Self.minimumInterval else { return }  // 0 = manual only
+        guard interval >= Self.minimumInterval else { return } // 0 = manual only
 
         pollTask = Task { [weak self] in
             while !Task.isCancelled {

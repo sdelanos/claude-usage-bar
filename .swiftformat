@@ -4,7 +4,7 @@
 
 --swiftversion 6.0
 --indent 4
---maxwidth 100
+--maxwidth 120
 --wraparguments before-first
 --wrapparameters before-first
 --wrapcollections before-first

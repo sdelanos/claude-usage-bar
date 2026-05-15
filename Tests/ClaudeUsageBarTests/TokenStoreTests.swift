@@ -1,10 +1,9 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 @Suite("TokenFormat.looksValid")
 struct TokenFormatTests {
-
     @Test("accepts a plausible long-lived token")
     func acceptsPlausibleToken() {
         #expect(TokenFormat.looksValid("sk-ant-oat01-" + String(repeating: "A", count: 100)))
@@ -33,8 +32,14 @@ struct TokenFormatTests {
 
     @Test("boundary on length: minimum-length-minus-1 rejected, minimum accepted")
     func lengthBoundary() {
-        let belowMin = "sk-ant-" + String(repeating: "x", count: TokenFormat.minimumLength - "sk-ant-".count - 1)
-        let atMin    = "sk-ant-" + String(repeating: "x", count: TokenFormat.minimumLength - "sk-ant-".count)
+        let belowMin = "sk-ant-" + String(
+            repeating: "x",
+            count: TokenFormat.minimumLength - "sk-ant-".count - 1
+        )
+        let atMin = "sk-ant-" + String(
+            repeating: "x",
+            count: TokenFormat.minimumLength - "sk-ant-".count
+        )
         #expect(!TokenFormat.looksValid(belowMin))
         #expect(TokenFormat.looksValid(atMin))
     }
@@ -53,10 +58,11 @@ struct TokenFormatTests {
 /// These tests hit the user's real login keychain (under random service
 /// names). They're skipped automatically when `CUBAR_SKIP_KEYCHAIN_TESTS`
 /// is set, which CI sets when its keychain isn't usefully unlocked.
-@Suite("KeychainTokenStore round-trip",
-       .disabled(if: ProcessInfo.processInfo.environment["CUBAR_SKIP_KEYCHAIN_TESTS"] != nil))
+@Suite(
+    "KeychainTokenStore round-trip",
+    .disabled(if: ProcessInfo.processInfo.environment["CUBAR_SKIP_KEYCHAIN_TESTS"] != nil)
+)
 struct KeychainTokenStoreTests {
-
     private func makeStore() -> KeychainTokenStore {
         KeychainTokenStore(service: "dev.claude-usage-bar.tests.\(UUID().uuidString)")
     }
@@ -86,7 +92,7 @@ struct KeychainTokenStoreTests {
         let store = makeStore()
         defer { try? store.delete() }
 
-        let first  = "sk-ant-oat01-" + String(repeating: "A", count: 80)
+        let first = "sk-ant-oat01-" + String(repeating: "A", count: 80)
         let second = "sk-ant-oat01-" + String(repeating: "B", count: 80)
         try store.save(first)
         try store.save(second)
@@ -125,7 +131,6 @@ struct KeychainTokenStoreTests {
 
 @Suite("InMemoryTokenStore")
 struct InMemoryTokenStoreTests {
-
     @Test("round-trip via the in-memory store works without a keychain")
     func roundTrip() throws {
         let store = InMemoryTokenStore()

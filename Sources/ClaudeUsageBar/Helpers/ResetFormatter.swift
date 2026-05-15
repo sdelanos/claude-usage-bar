@@ -15,7 +15,6 @@ import Foundation
 /// `nonisolated(unsafe)` shared map (a hazard that's hard to justify for
 /// something allocated twice every five minutes).
 enum ResetFormatter {
-
     private static let relativeThreshold: TimeInterval = 12 * 3600
 
     static func format(_ date: Date, now: Date = Date(), locale: Locale = .current) -> String {

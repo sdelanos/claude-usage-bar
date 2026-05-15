@@ -1,6 +1,6 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 /// State-machine tests for `UsageService`.
 ///
@@ -9,7 +9,6 @@ import Foundation
 @MainActor
 @Suite("UsageService state machine")
 struct UsageServiceTests {
-
     // MARK: - Fixtures
 
     private let validToken = "sk-ant-oat01-" + String(repeating: "A", count: 80)
@@ -31,7 +30,7 @@ struct UsageServiceTests {
         let service = UsageService(
             tokenStore: store,
             usageFetcher: fetcher,
-            bootstrapNotifications: { },
+            bootstrapNotifications: {},
             evaluateNotifications: { _ in }
         )
         return (service, fetcher)
@@ -55,8 +54,10 @@ struct UsageServiceTests {
 
     @Test("token + 401 → needsSetup(.tokenRejected)")
     func unauthorizedSwitchesToSetup() async {
-        let (service, _) = makeService(token: validToken,
-                                       fetchResult: .failure(UsageClientError.unauthorized))
+        let (service, _) = makeService(
+            token: validToken,
+            fetchResult: .failure(UsageClientError.unauthorized)
+        )
         await service.refresh()
         #expect(service.state == .needsSetup(.tokenRejected))
     }
@@ -80,7 +81,10 @@ struct UsageServiceTests {
     func httpErrorDoesNotLeakBody() async {
         let (service, _) = makeService(
             token: validToken,
-            fetchResult: .failure(UsageClientError.httpError(status: 503, debugBody: "ROBOT-LEAK-XYZ"))
+            fetchResult: .failure(UsageClientError.httpError(
+                status: 503,
+                debugBody: "ROBOT-LEAK-XYZ"
+            ))
         )
         await service.refresh()
         guard case .error(let userFacing) = service.state else {
@@ -134,13 +138,14 @@ struct UsageServiceTests {
 
     @Test("normalizedInterval: nil → default, 0 → manualOnly, valid → clamped")
     func normalizedIntervalCases() {
-        #expect(UsageService.normalizedInterval(fromStoredValue: nil) == UsageService.defaultInterval)
-        #expect(UsageService.normalizedInterval(fromStoredValue: 0) == UsageService.manualOnly)
-        #expect(UsageService.normalizedInterval(fromStoredValue: 10) == UsageService.minimumInterval)
-        #expect(UsageService.normalizedInterval(fromStoredValue: 600) == 600)
-        #expect(UsageService.normalizedInterval(fromStoredValue: -5) == UsageService.defaultInterval)
-        #expect(UsageService.normalizedInterval(fromStoredValue: .nan) == UsageService.defaultInterval)
-        #expect(UsageService.normalizedInterval(fromStoredValue: .infinity) == UsageService.defaultInterval)
+        let normalize = UsageService.normalizedInterval(fromStoredValue:)
+        #expect(normalize(nil) == UsageService.defaultInterval)
+        #expect(normalize(0) == UsageService.manualOnly)
+        #expect(normalize(10) == UsageService.minimumInterval)
+        #expect(normalize(600) == 600)
+        #expect(normalize(-5) == UsageService.defaultInterval)
+        #expect(normalize(.nan) == UsageService.defaultInterval)
+        #expect(normalize(.infinity) == UsageService.defaultInterval)
     }
 }
 
@@ -156,7 +161,7 @@ final class MockUsageFetcher: UsageFetching, @unchecked Sendable {
     }
 
     init(result: Result<Usage, Error>) {
-        self._result = result
+        _result = result
     }
 
     func fetch(accessToken: SecretToken) async throws -> Usage {

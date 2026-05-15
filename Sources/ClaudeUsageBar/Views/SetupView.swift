@@ -34,8 +34,10 @@ struct SetupView: View {
                         .font(.system(.caption, design: .monospaced))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color.primary.opacity(0.08),
-                                    in: RoundedRectangle(cornerRadius: 6))
+                        .background(
+                            Color.primary.opacity(0.08),
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
                         .textSelection(.enabled)
                     Spacer(minLength: 0)
                     Button(action: copyCommand) {
@@ -102,10 +104,12 @@ struct SetupView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Set up authentication")
                     .font(.subheadline.weight(.semibold))
-                Text("Claude Usage Bar uses a long-lived token from your Claude subscription. One-time setup, no keychain prompts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                Text(
+                    "Claude Usage Bar uses a long-lived token from your Claude subscription. One-time setup, no keychain prompts."
+                )
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         case .tokenRejected:
             VStack(alignment: .leading, spacing: 2) {

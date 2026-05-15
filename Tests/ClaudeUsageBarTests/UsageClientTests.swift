@@ -1,10 +1,9 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 @Suite("UsageClient.parse")
 struct UsageClientParseTests {
-
     static let reset5h: TimeInterval = 1_715_000_000
     static let reset7d: TimeInterval = 1_715_500_000
 
@@ -57,9 +56,11 @@ struct UsageClientParseTests {
         do {
             _ = try UsageClient.parse(headers: response, at: Date())
             Issue.record("expected missingHeaders error, got success")
-        } catch let UsageClientError.missingHeaders(names) {
-            #expect(Set(names) == required,
-                    "expected every required header to be reported as missing; got \(names)")
+        } catch UsageClientError.missingHeaders(let names) {
+            #expect(
+                Set(names) == required,
+                "expected every required header to be reported as missing; got \(names)"
+            )
         } catch {
             Issue.record("expected UsageClientError.missingHeaders, got \(error)")
         }
@@ -98,10 +99,18 @@ struct UsageClientParseTests {
 /// response shape it wants, then makes a single request through a session
 /// configured to use this protocol.
 final class StubURLProtocol: URLProtocol, @unchecked Sendable {
-    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+    nonisolated(unsafe) static var handler: (@Sendable (URLRequest) throws -> (
+        HTTPURLResponse,
+        Data
+    ))?
 
-    override class func canInit(with request: URLRequest) -> Bool { true }
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
 
     override func startLoading() {
         guard let handler = Self.handler else {
@@ -125,7 +134,6 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 /// serially to keep concurrent suites from clobbering each other's handler.
 @Suite("UsageClient.fetch", .serialized)
 struct UsageClientFetchTests {
-
     private func makeClient() -> (UsageClient, URLSession) {
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [StubURLProtocol.self]
@@ -182,7 +190,7 @@ struct UsageClientFetchTests {
         do {
             _ = try await client.fetch(accessToken: SecretToken("sk-ant-test"))
             Issue.record("expected UsageClientError.httpError")
-        } catch let UsageClientError.httpError(status, body) {
+        } catch UsageClientError.httpError(let status, let body) {
             #expect(status == 503)
             #expect(body.contains("overloaded"))
         } catch {
@@ -192,7 +200,10 @@ struct UsageClientFetchTests {
 
     @Test("description for .httpError does not leak the response body")
     func httpErrorDescriptionHidesBody() {
-        let error = UsageClientError.httpError(status: 500, debugBody: "secret-or-token-bearing-body")
+        let error = UsageClientError.httpError(
+            status: 500,
+            debugBody: "secret-or-token-bearing-body"
+        )
         #expect(!error.description.contains("secret-or-token-bearing-body"))
     }
 }

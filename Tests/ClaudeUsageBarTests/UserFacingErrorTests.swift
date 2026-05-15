@@ -1,10 +1,9 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 @Suite("UserFacingError.translate")
 struct UserFacingErrorTests {
-
     @Test("URLError(.notConnectedToInternet) yields 'No internet connection.'")
     func noInternet() {
         let translated = UserFacingError.translate(URLError(.notConnectedToInternet))
@@ -50,7 +49,6 @@ struct UserFacingErrorTests {
 
 @Suite("SecretToken")
 struct SecretTokenTests {
-
     @Test("description and debugDescription both redact the value")
     func descriptionsRedact() {
         let token = SecretToken("sk-ant-oat01-AAAAAA")

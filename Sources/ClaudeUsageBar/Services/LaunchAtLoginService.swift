@@ -21,7 +21,7 @@ final class LaunchAtLoginService: ObservableObject {
     private let log = Logger(subsystem: "dev.claude-usage-bar.app", category: "launch-at-login")
 
     init() {
-        self.isEnabled = Self.readCurrentStatus()
+        isEnabled = Self.readCurrentStatus()
     }
 
     func setEnabled(_ wanted: Bool) {
@@ -34,7 +34,10 @@ final class LaunchAtLoginService: ObservableObject {
             lastError = nil
             requiresApproval = false
         } catch {
-            log.error("setEnabled(\(wanted)) failed: \(error.localizedDescription, privacy: .public)")
+            log
+                .error(
+                    "setEnabled(\(wanted)) failed: \(error.localizedDescription, privacy: .public)"
+                )
             (lastError, requiresApproval) = Self.translate(error)
         }
         isEnabled = Self.readCurrentStatus()
@@ -53,7 +56,9 @@ final class LaunchAtLoginService: ObservableObject {
     /// Opens the Login Items pane in System Settings — exposed so the UI
     /// can deep-link the user there when `requiresApproval` is true.
     func openLoginItemsSettings() {
-        guard let url = URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension") else {
+        guard let url =
+            URL(string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension")
+        else {
             return
         }
         NSWorkspace.shared.open(url)
@@ -74,7 +79,7 @@ final class LaunchAtLoginService: ObservableObject {
         // SMAppServiceErrorDomain code 1 = "Operation not permitted" /
         // requires approval. We don't want to depend on a non-public error
         // enum, but matching on (domain, code) is stable.
-        if nsError.domain == "SMAppServiceErrorDomain" && nsError.code == 1 {
+        if nsError.domain == "SMAppServiceErrorDomain", nsError.code == 1 {
             return (
                 "Enable Claude Usage Bar in System Settings → General → Login Items.",
                 true

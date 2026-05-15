@@ -1,21 +1,20 @@
-import Testing
-import Foundation
 @testable import ClaudeUsageBar
+import Foundation
+import Testing
 
 @Suite("NotificationService.decide")
 struct NotificationDecisionTests {
-
-    private let fiveHour = NotificationService.fiveHour    // 25 % step, start 25
-    private let sevenDay = NotificationService.sevenDay    // 10 % step, start 10
+    private let fiveHour = NotificationService.fiveHour // 25 % step, start 25
+    private let sevenDay = NotificationService.sevenDay // 10 % step, start 10
 
     @Test("below the start threshold never fires")
     func belowStartDoesNotFire() {
         let d = NotificationService.decide(
-            utilization: 0.20,        // 20 %
-            config: fiveHour,         // start = 25
+            utilization: 0.20, // 20 %
+            config: fiveHour, // start = 25
             lastThreshold: 0,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 0)
         #expect(d.shouldNotify == false)
@@ -28,8 +27,8 @@ struct NotificationDecisionTests {
             utilization: 0.25,
             config: fiveHour,
             lastThreshold: 0,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 25)
         #expect(d.shouldNotify == true)
@@ -38,11 +37,11 @@ struct NotificationDecisionTests {
     @Test("staying inside the same band doesn't refire")
     func sameBandDoesNotRefire() {
         let d = NotificationService.decide(
-            utilization: 0.48,        // still in [25, 50)
+            utilization: 0.48, // still in [25, 50)
             config: fiveHour,
             lastThreshold: 25,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 25)
         #expect(d.shouldNotify == false)
@@ -56,8 +55,8 @@ struct NotificationDecisionTests {
             utilization: 0.60,
             config: fiveHour,
             lastThreshold: 0,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 50)
         #expect(d.shouldNotify == true)
@@ -72,8 +71,8 @@ struct NotificationDecisionTests {
             utilization: 0.30,
             config: fiveHour,
             lastThreshold: 75,
-            previousResetStamp: 1_000,
-            currentResetStamp: 5_000
+            previousResetStamp: 1000,
+            currentResetStamp: 5000
         )
         #expect(d.didWindowReset == true)
         #expect(d.crossed == 25)
@@ -86,8 +85,8 @@ struct NotificationDecisionTests {
             utilization: 0.10,
             config: sevenDay,
             lastThreshold: 0,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 10)
         #expect(d.shouldNotify == true)
@@ -96,11 +95,11 @@ struct NotificationDecisionTests {
     @Test("utilization is clamped before bucketing")
     func clampsOverOne() {
         let d = NotificationService.decide(
-            utilization: 1.6,         // shouldn't happen, but defensive
+            utilization: 1.6, // shouldn't happen, but defensive
             config: fiveHour,
             lastThreshold: 99,
-            previousResetStamp: 1_000,
-            currentResetStamp: 1_000
+            previousResetStamp: 1000,
+            currentResetStamp: 1000
         )
         #expect(d.crossed == 100)
         #expect(d.shouldNotify == true)

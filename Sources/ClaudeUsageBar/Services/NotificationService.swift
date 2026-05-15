@@ -20,11 +20,10 @@ import UserNotifications
 /// authorization-state cache stay coherent under Swift 6 strict concurrency.
 @MainActor
 enum NotificationService {
-
     // MARK: - Public configuration
 
     /// Window-specific thresholds.
-    struct WindowConfig: Sendable {
+    struct WindowConfig {
         /// Smallest crossing worth notifying about.
         let start: Int
         /// Distance between consecutive notifications.
@@ -89,7 +88,7 @@ enum NotificationService {
     // MARK: - Pure decision logic (unit-tested)
 
     /// What `evaluate` should do for a single window given its current state.
-    struct Decision: Equatable, Sendable {
+    struct Decision: Equatable {
         /// Highest threshold the current utilization crosses, rounded down
         /// to the nearest `step` (0, 25, 50, … or 0, 10, 20, …).
         let crossed: Int

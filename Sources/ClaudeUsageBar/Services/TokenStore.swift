@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Failure modes for the local token cache.
-enum TokenStoreError: Error, Equatable, Sendable, CustomStringConvertible {
+enum TokenStoreError: Error, Equatable, CustomStringConvertible {
     /// `SecItem*` returned a non-success status.
     case keychainStatus(OSStatus)
     /// The stored keychain entry is present but isn't valid UTF-8.
@@ -13,11 +13,11 @@ enum TokenStoreError: Error, Equatable, Sendable, CustomStringConvertible {
     var description: String {
         switch self {
         case .keychainStatus(let status):
-            return "Keychain operation failed (OSStatus \(status))."
+            "Keychain operation failed (OSStatus \(status))."
         case .malformedData:
-            return "Stored token is not valid UTF-8 — re-run setup."
+            "Stored token is not valid UTF-8 — re-run setup."
         case .invalidFormat:
-            return "That doesn't look like a Claude long-lived token."
+            "That doesn't look like a Claude long-lived token."
         }
     }
 
@@ -25,22 +25,22 @@ enum TokenStoreError: Error, Equatable, Sendable, CustomStringConvertible {
     var userFacing: UserFacingError {
         switch self {
         case .invalidFormat:
-            return .init(
+            .init(
                 message: "That doesn't look like a token. Paste the full `sk-ant-…` string from `claude setup-token`.",
                 isRetryable: false
             )
         case .malformedData:
-            return .init(
+            .init(
                 message: "The stored token is corrupted. Re-run `claude setup-token` and paste the new token.",
                 isRetryable: false
             )
         case .keychainStatus(errSecAuthFailed):
-            return .init(
+            .init(
                 message: "Couldn't unlock the keychain. Sign in to macOS and try again.",
                 isRetryable: true
             )
         case .keychainStatus:
-            return .init(
+            .init(
                 message: "Couldn't save the token. Try again.",
                 isRetryable: true
             )
@@ -79,8 +79,8 @@ enum TokenFormat {
 
     static func looksValid(_ candidate: String) -> Bool {
         let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard (minimumLength...maximumLength).contains(trimmed.count) else { return false }
-        guard !trimmed.contains(where: { $0.isWhitespace }) else { return false }
+        guard (minimumLength ... maximumLength).contains(trimmed.count) else { return false }
+        guard !trimmed.contains(where: \.isWhitespace) else { return false }
         return trimmed.hasPrefix("sk-ant-")
     }
 }
@@ -98,8 +98,10 @@ struct KeychainTokenStore: TokenStoring {
     let service: String
     let account: String
 
-    init(service: String = KeychainTokenStore.defaultService,
-         account: String = KeychainTokenStore.defaultAccount) {
+    init(
+        service: String = KeychainTokenStore.defaultService,
+        account: String = KeychainTokenStore.defaultAccount
+    ) {
         self.service = service
         self.account = account
     }
@@ -118,7 +120,8 @@ struct KeychainTokenStore: TokenStoring {
         case errSecSuccess:
             guard let data = result as? Data,
                   let token = String(data: data, encoding: .utf8),
-                  !token.isEmpty else {
+                  !token.isEmpty
+            else {
                 throw TokenStoreError.malformedData
             }
             return token
@@ -149,7 +152,9 @@ struct KeychainTokenStore: TokenStoring {
             return
         case errSecItemNotFound:
             var addAttributes = query
-            for (key, value) in attributes { addAttributes[key] = value }
+            for (key, value) in attributes {
+                addAttributes[key] = value
+            }
             let addStatus = SecItemAdd(addAttributes as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
                 throw TokenStoreError.keychainStatus(addStatus)
@@ -178,7 +183,7 @@ final class InMemoryTokenStore: TokenStoring, @unchecked Sendable {
     private var stored: String?
 
     init(_ initial: String? = nil) {
-        self.stored = initial
+        stored = initial
     }
 
     func load() throws -> String? {

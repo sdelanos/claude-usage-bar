@@ -12,7 +12,7 @@ import Foundation
 /// The wrapper is intentionally tiny: no zeroization, no `mlock`. Swift makes
 /// heap zeroing of `String` storage impossible from user code; treating the
 /// type as un-loggable is the realistic guarantee.
-struct SecretToken: Equatable, Hashable, Sendable {
+struct SecretToken: Equatable, Hashable {
     private let value: String
 
     init(_ value: String) {
@@ -21,14 +21,23 @@ struct SecretToken: Equatable, Hashable, Sendable {
 
     /// Returns the raw bearer for use as a `Bearer ` header. Call sites that
     /// invoke `reveal()` are the audit surface — grep for them.
-    func reveal() -> String { value }
+    func reveal() -> String {
+        value
+    }
 
     /// `true` if the wrapped string is empty. Useful for guards without
     /// calling `reveal()`.
-    var isEmpty: Bool { value.isEmpty }
+    var isEmpty: Bool {
+        value.isEmpty
+    }
 }
 
 extension SecretToken: CustomStringConvertible, CustomDebugStringConvertible {
-    var description: String { "sk-ant-***" }
-    var debugDescription: String { "sk-ant-***" }
+    var description: String {
+        "sk-ant-***"
+    }
+
+    var debugDescription: String {
+        "sk-ant-***"
+    }
 }

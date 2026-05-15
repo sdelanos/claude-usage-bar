@@ -10,15 +10,17 @@ enum RefreshInterval: TimeInterval, CaseIterable, Identifiable {
     case fifteenMinutes = 900
     case thirtyMinutes = 1800
 
-    var id: TimeInterval { rawValue }
+    var id: TimeInterval {
+        rawValue
+    }
 
     var label: String {
         switch self {
-        case .manual:          return "Manual only"
-        case .oneMinute:       return "1 min"
-        case .fiveMinutes:     return "5 min"
-        case .fifteenMinutes:  return "15 min"
-        case .thirtyMinutes:   return "30 min"
+        case .manual: "Manual only"
+        case .oneMinute: "1 min"
+        case .fiveMinutes: "5 min"
+        case .fifteenMinutes: "15 min"
+        case .thirtyMinutes: "30 min"
         }
     }
 }
@@ -39,9 +41,11 @@ struct MenuContentView: View {
             controls
         }
         .padding(Self.outerPadding)
-        .frame(minWidth: Self.dropdownWidth,
-               idealWidth: Self.dropdownWidth,
-               maxWidth: Self.dropdownWidth * 1.2)
+        .frame(
+            minWidth: Self.dropdownWidth,
+            idealWidth: Self.dropdownWidth,
+            maxWidth: Self.dropdownWidth * 1.2
+        )
     }
 
     // MARK: - Header
@@ -124,9 +128,9 @@ struct MenuContentView: View {
 
     private var isAuthenticated: Bool {
         switch service.state {
-        case .loaded, .error: return true
-        case .loading:        return service.state == .loading
-        case .needsSetup:     return false
+        case .loaded, .error: true
+        case .loading: service.state == .loading
+        case .needsSetup: false
         }
     }
 

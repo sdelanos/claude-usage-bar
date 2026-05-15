@@ -9,13 +9,14 @@
 Live Claude API rate-limit usage in your macOS menu bar.
 
 <p align="center">
-  <img src="docs/screenshots/menubar.png" alt="Menu bar: 31% · 56%" height="22" />
-  &nbsp;&nbsp;
-  <img src="docs/screenshots/dropdown.png" alt="Dropdown" width="320" />
+  <img src="docs/screenshots/dropdown.png" alt="Claude Usage Bar dropdown" width="360" />
 </p>
 
-The first number is your **5-hour session** utilization, the second your
-**7-day window**. Click for reset times, refresh frequency, launch-at-login.
+<p align="center">
+  <img src="docs/screenshots/menubar.png" alt="Menu bar reads: 31% · 56%" width="220" />
+  <br/>
+  <sub>5-hour session · 7-day window</sub>
+</p>
 
 ## Install
 

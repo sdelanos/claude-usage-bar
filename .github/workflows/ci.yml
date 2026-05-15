@@ -13,8 +13,12 @@ concurrency:
 
 jobs:
   test:
-    name: swift test (macOS)
-    runs-on: macos-26
+    name: swift test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
@@ -25,5 +29,53 @@ jobs:
           xcode-select -p
           swift --version
 
-      - name: Run tests
-        run: swift test
+      - name: Run tests with coverage
+        # macos-15 ships Xcode 16 by default → only the v6 language mode is
+        # available; that's fine, no AppKit features in test paths require
+        # the newer SDK.
+        run: swift test --enable-code-coverage
+
+      - name: Export coverage summary
+        if: matrix.os == 'macos-26'
+        run: |
+          set -euo pipefail
+          BIN_PATH="$(swift build --show-bin-path)"
+          PROF="$BIN_PATH/codecov/default.profdata"
+          XCTEST="$(find "$BIN_PATH" -name "*.xctest" -print -quit)/Contents/MacOS/$(basename -s .xctest "$(find "$BIN_PATH" -name '*.xctest' -print -quit)")"
+          xcrun llvm-cov report \
+              "$XCTEST" \
+              -instr-profile "$PROF" \
+              -ignore-filename-regex='\.build/|Tests/' \
+              | tee coverage-report.txt
+          echo "## Coverage" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat coverage-report.txt >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        if: matrix.os == 'macos-26'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage-report.txt
+          if-no-files-found: warn
+
+  release-build:
+    name: swift build -c release (macos-26)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build release configuration
+        # Catches the dead-code-elimination edge cases that only fail under
+        # -O — `swift test` builds in debug.
+        run: swift build -c release
+
+  lint:
+    name: swiftformat --lint
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install SwiftFormat
+        run: brew install swiftformat
+      - name: Lint
+        run: swiftformat --lint .

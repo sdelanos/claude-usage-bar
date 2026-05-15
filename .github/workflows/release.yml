@@ -30,6 +30,10 @@ jobs:
         # No stable identity on CI — build.sh falls back to ad-hoc signing,
         # which is fine for an unnotarized cask. Users see one Gatekeeper
         # prompt on first launch; that's standard for community casks.
+        # CUBAR_VERSION stamps Info.plist's CFBundleShortVersionString so
+        # the bundle reports the same version users typed into `brew install`.
+        env:
+          CUBAR_VERSION: ${{ github.ref_name }}
         run: ./build.sh
 
       - name: Verify bundle

@@ -146,9 +146,14 @@ echo
 WORK_DIR="$(mktemp -d -t claude-usage-bar-install)"
 trap 'rm -rf "$WORK_DIR"' EXIT
 
-step "Cloning $REPO_URL"
-git clone --depth 1 --quiet "$REPO_URL" "$WORK_DIR/src"
+# Pin to a specific tag via CUBAR_REF, default to `main`. Pinning is
+# recommended for reproducibility:  `CUBAR_REF=v0.3.0 bash install.sh`.
+CUBAR_REF="${CUBAR_REF:-main}"
+
+step "Cloning $REPO_URL ($CUBAR_REF)"
+git clone --depth 1 --branch "$CUBAR_REF" --quiet "$REPO_URL" "$WORK_DIR/src"
 cd "$WORK_DIR/src"
+ok "Checked out $(git -C "$WORK_DIR/src" rev-parse HEAD)"
 
 # This is the catch for the known broken CommandLineTools state: `swift`
 # exists but its bundled PackageDescription doesn't link. We can only
@@ -186,12 +191,22 @@ fi
 # --- Code-signing identity (idempotent) -----------------------------------
 
 step "Setting up local code-signing identity"
-./setup-cert.sh
+if ! ./setup-cert.sh >"$WORK_DIR/setup-cert.log" 2>&1; then
+    echo
+    echo "✗ setup-cert.sh failed. Last 50 lines:"
+    tail -n 50 "$WORK_DIR/setup-cert.log" >&2
+    exit 1
+fi
 
 # --- Build -----------------------------------------------------------------
 
 step "Building $APP_NAME.app"
-./build.sh >/dev/null
+if ! ./build.sh >"$WORK_DIR/build.log" 2>&1; then
+    echo
+    echo "✗ build.sh failed. Last 50 lines:"
+    tail -n 50 "$WORK_DIR/build.log" >&2
+    exit 1
+fi
 
 # --- Install ---------------------------------------------------------------
 

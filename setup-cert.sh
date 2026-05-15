@@ -19,7 +19,10 @@ set -euo pipefail
 
 CERT_NAME="ClaudeUsageBar Dev"
 LOGIN_KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
-P12_PASSWORD="tmp"
+# Random per-run password for the in-flight .p12. The bundle is deleted
+# on EXIT via the trap below, so the password protects only the on-disk
+# intermediate before keychain import.
+P12_PASSWORD="$(openssl rand -base64 16 | tr -d '/+=')"
 
 # Prefer Homebrew's OpenSSL 3 (supports `-legacy`) when present; fall back to
 # the system openssl (LibreSSL on macOS, which produces a Keychain-compatible

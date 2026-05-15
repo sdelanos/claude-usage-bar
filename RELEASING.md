@@ -26,16 +26,19 @@ real release below.
 ## Each release
 
 1. **Update `CHANGELOG.md`** — move entries out of `[Unreleased]` into a
-   new `[X.Y.Z] - YYYY-MM-DD` section.
+   new `[X.Y.Z] - YYYY-MM-DD` section. `Info.plist`'s
+   `CFBundleShortVersionString` is **not** edited by hand — `build.sh`
+   stamps it from `CUBAR_VERSION` (set by the workflow from the tag).
 2. **Commit + tag**:
    ```sh
    git commit -am "Release vX.Y.Z"
    git tag -a vX.Y.Z -m "vX.Y.Z"
-   git push origin main --tags
+   git push origin main
+   git push origin vX.Y.Z
    ```
 3. **Wait for the Release workflow** — `.github/workflows/release.yml`
-   builds the .app, zips it, and attaches it to the GitHub release.
-   Watch with `gh run watch` or check the Actions tab.
+   builds the .app on `macos-26`, zips it, and attaches it to the
+   GitHub release. Watch with `gh run watch` or check the Actions tab.
 4. **Bump the cask**:
    ```sh
    scripts/bump-cask.sh vX.Y.Z > ../homebrew-claude-usage-bar/Casks/claude-usage-bar.rb
@@ -51,9 +54,8 @@ real release below.
    ```
 6. **Verify**:
    ```sh
-   brew untap sdelanos/claude-usage-bar 2>/dev/null || true
-   brew tap sdelanos/claude-usage-bar
-   brew install --cask claude-usage-bar
+   brew update
+   brew reinstall --cask sdelanos/claude-usage-bar/claude-usage-bar
    ```
 
 That's the whole loop. Roughly 2 minutes of human time per release,

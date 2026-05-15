@@ -10,7 +10,7 @@ PRs that match the existing style.
 git clone https://github.com/sdelanos/claude-usage-bar.git
 cd claude-usage-bar
 ./setup-cert.sh    # one-time
-swift test         # 35 tests, ~10ms
+swift test         # runs in well under a second
 ./build.sh         # produces ClaudeUsageBar.app
 open ClaudeUsageBar.app
 ```
@@ -40,8 +40,16 @@ The fix is documented in the [README's toolchain section](README.md#toolchain).
 
 ## Testing
 
-- New pure logic comes with tests. We use Apple's `swift-testing`
-  framework (`import Testing`, `@Test`, `#expect`).
+- New pure logic comes with tests. We use Apple's
+  [swift-testing](https://github.com/apple/swift-testing) framework
+  (`import Testing`, `@Test`, `#expect`).
+- I/O (keychain, URLSession) is behind protocols (`TokenStoring`,
+  `UsageFetching`) so the state machine in `UsageService` is testable
+  with `InMemoryTokenStore` + a mock fetcher — never touches the real
+  keychain or the network.
+- The `UsageClient.fetch` integration tests use `URLProtocol` stubs;
+  serialized via `@Suite(.serialized)` because the protocol's handler is
+  global.
 - SwiftUI views are not unit-tested. Snapshot tests aren't worth their
   maintenance for a single-dropdown UI; manual verification is fine.
 - `Tests/ClaudeUsageBarTests/` mirrors `Sources/ClaudeUsageBar/`
@@ -50,12 +58,14 @@ The fix is documented in the [README's toolchain section](README.md#toolchain).
 ## Architecture in one paragraph
 
 `ClaudeUsageBarApp` composes `UsageService` + `LaunchAtLoginService` and
-injects them into `MenuContentView`. `UsageService` owns a `Timer`, reads
-the token from `TokenStore`, calls `UsageClient` → `NotificationService`
-on each refresh, and publishes a `State` enum the views observe (including
-`.needsSetup` for first-run and 401 recovery). Nothing else touches
-`UserDefaults`, `URLSession`, or `UNUserNotificationCenter` directly.
-Helpers under `Helpers/` are stateless utilities.
+injects them into `MenuContentView`. `UsageService` reads a token from
+`TokenStoring`, hands it to `UsageFetching`, then forwards the resulting
+`Usage` to `NotificationService.evaluate` — and publishes a `State` enum
+the views observe (`.loading`, `.loaded`, `.needsSetup`, `.error`). The
+poll loop is a structured `Task` cancelled on sign-out / interval change.
+Every error reachable from the UI goes through `UserFacingError.translate`
+so raw `URLError` / response-body bytes never reach the dropdown.
+Tokens are wrapped in `SecretToken` and never printed.
 
 ## Reporting bugs
 

@@ -40,6 +40,8 @@ private struct MenuBarLabel: View {
             let fiveHour = Int((usage.fiveHour.utilization * 100).rounded())
             let sevenDay = Int((usage.sevenDay.utilization * 100).rounded())
             return "\(fiveHour)% · \(sevenDay)%"
+        case .needsSetup:
+            return "Setup"
         case .error:
             return "!"
         }

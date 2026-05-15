@@ -6,8 +6,13 @@ enum UsageClientError: Error, Equatable, CustomStringConvertible {
     /// The associated value lists every header that contributed to the
     /// failure, so the user gets one diagnostic instead of N round-trips.
     case missingHeaders([String])
-    /// The Anthropic API returned a non-2xx response. The body is truncated
-    /// to 200 chars in the description so it stays readable in the UI.
+    /// 401 from Anthropic — the token is expired, revoked, or wrong.
+    /// Surfaced as its own case so the caller can drop straight into the
+    /// re-setup flow without parsing a body.
+    case unauthorized
+    /// The Anthropic API returned a non-2xx, non-401 response. The body is
+    /// truncated to 200 chars in the description so it stays readable in the
+    /// UI.
     case httpError(Int, String)
     /// `URLSession` handed us a response object that isn't HTTP.
     case invalidResponse
@@ -16,6 +21,8 @@ enum UsageClientError: Error, Equatable, CustomStringConvertible {
         switch self {
         case .missingHeaders(let names):
             return "Missing or unparseable headers: \(names.joined(separator: ", "))"
+        case .unauthorized:
+            return "Token rejected (401). Re-run `claude setup-token` and paste the new token."
         case .httpError(let code, let body):
             let trimmed = body.count > 200 ? String(body.prefix(200)) + "…" : body
             return "HTTP \(code): \(trimmed)"
@@ -140,6 +147,9 @@ struct UsageClient {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw UsageClientError.invalidResponse
+        }
+        if http.statusCode == 401 {
+            throw UsageClientError.unauthorized
         }
         guard (200..<300).contains(http.statusCode) else {
             let text = String(data: data, encoding: .utf8) ?? ""

@@ -50,11 +50,12 @@ The fix is documented in the [README's toolchain section](README.md#toolchain).
 ## Architecture in one paragraph
 
 `ClaudeUsageBarApp` composes `UsageService` + `LaunchAtLoginService` and
-injects them into `MenuContentView`. `UsageService` owns a `Timer`,
-calls `KeychainReader` → `UsageClient` → `NotificationService` on each
-refresh, and publishes a `State` enum the views observe. Nothing else
-touches `UserDefaults`, `URLSession`, or `UNUserNotificationCenter`
-directly. Helpers under `Helpers/` are stateless utilities.
+injects them into `MenuContentView`. `UsageService` owns a `Timer`, reads
+the token from `TokenStore`, calls `UsageClient` → `NotificationService`
+on each refresh, and publishes a `State` enum the views observe (including
+`.needsSetup` for first-run and 401 recovery). Nothing else touches
+`UserDefaults`, `URLSession`, or `UNUserNotificationCenter` directly.
+Helpers under `Helpers/` are stateless utilities.
 
 ## Reporting bugs
 

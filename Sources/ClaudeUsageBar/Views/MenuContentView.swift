@@ -69,6 +69,9 @@ struct MenuContentView: View {
                 }
             }
 
+        case .needsSetup(let reason):
+            SetupView(service: service, reason: reason)
+
         case .error(let message):
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "exclamationmark.octagon.fill")
@@ -80,6 +83,11 @@ struct MenuContentView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    private var isSetupActive: Bool {
+        if case .needsSetup = service.state { return true }
+        return false
     }
 
     // MARK: - Controls
@@ -116,12 +124,14 @@ struct MenuContentView: View {
             }
 
             HStack {
-                Button {
-                    Task { await service.refresh() }
-                } label: {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                if !isSetupActive {
+                    Button {
+                        Task { await service.refresh() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
                 }
-                .buttonStyle(.bordered)
 
                 Spacer()
 

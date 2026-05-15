@@ -11,10 +11,12 @@
 #      back and forth.
 #   2. Clones this repo into a temp directory.
 #   3. Installs (idempotently) a local code-signing identity in your
-#      login keychain — this is what lets macOS remember the Claude Code
-#      Keychain "Always Allow" decision after the first launch.
+#      login keychain so the .app has a stable cryptographic identity.
 #   4. Builds the .app, signed with that identity.
 #   5. Moves it to /Applications and launches it.
+#
+# First launch: the dropdown shows a one-time setup card. Run
+# `claude setup-token`, paste the printed token, save. No keychain prompts.
 #
 # Re-run the same one-liner any time to update.
 
@@ -122,13 +124,16 @@ else
     add_missing "Swift 6 toolchain" "$SWIFTLY_INSTALL"
 fi
 
-# Claude Code credentials — informational, not a build blocker.
-if security find-generic-password -s "Claude Code-credentials" >/dev/null 2>&1; then
-    ok "Claude Code credentials present in Keychain"
+# Claude Code presence — informational, not a build blocker. We don't read
+# Claude Code's keychain entry anymore; we just need `claude setup-token` to
+# be runnable at first-run setup time.
+if command -v claude >/dev/null 2>&1; then
+    ok "claude CLI on PATH"
 else
-    warn "Claude Code credentials not found in Keychain."
-    warn "Install Claude Code and sign in before launching the app, otherwise"
-    warn "the menu bar will show '!'. https://docs.claude.com/en/docs/claude-code/overview"
+    warn "claude CLI not found on PATH."
+    warn "Install Claude Code before first-launch setup, otherwise you won't"
+    warn "be able to mint a long-lived token via 'claude setup-token'."
+    warn "https://docs.claude.com/en/docs/claude-code/overview"
 fi
 
 # Bail with the full list if anything's missing.
@@ -206,5 +211,8 @@ open "$DEST"
 echo
 ok "Done. ClaudeUsageBar is in your menu bar."
 echo
-echo "  • First launch: macOS asks once for Keychain access — click 'Always Allow'."
+echo "  • First launch: click the icon, follow the setup card."
+echo "      1. Run 'claude setup-token' in Terminal"
+echo "      2. Approve in the browser"
+echo "      3. Paste the printed token into the app and Save"
 echo "  • To update later: re-run the same install command."

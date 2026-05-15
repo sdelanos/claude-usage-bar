@@ -6,8 +6,9 @@
 #   1. swift build -c release
 #   2. Assemble ClaudeUsageBar.app/Contents/{MacOS,Info.plist}
 #   3. Sign with "ClaudeUsageBar Dev" if available, else fall back to ad-hoc (-)
-#      and warn — ad-hoc signing means macOS will re-prompt for Keychain access
-#      on every rebuild.
+#      and warn. Stable signing isn't required for the app's auth flow
+#      (we use a setup-token in our own keychain item), but it gives the
+#      bundle a consistent cryptographic identity macOS can track.
 
 set -euo pipefail
 
@@ -52,8 +53,7 @@ if security find-identity ~/Library/Keychains/login.keychain-db 2>/dev/null | gr
     echo "✅ Signed with stable identity '$CERT_NAME'"
 else
     echo "⚠️  Identity '$CERT_NAME' not found — falling back to ad-hoc signing."
-    echo "⚠️  macOS will re-prompt for Keychain access after every rebuild."
-    echo "⚠️  Run ./setup-cert.sh once to install a stable identity."
+    echo "⚠️  Run ./setup-cert.sh once to install a stable local identity."
     codesign --force --deep --sign - "$APP_BUNDLE"
 fi
 

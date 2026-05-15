@@ -1,14 +1,19 @@
 #!/usr/bin/env bash
 #
 # Installs a self-signed code-signing identity named "ClaudeUsageBar Dev"
-# into your login keychain. build.sh then signs the .app with it, which
-# gives macOS a stable identity to associate with the Keychain "Always
-# Allow" grant — so the Claude Code credentials prompt only appears once.
+# into your login keychain. build.sh then signs the .app with it so the
+# bundle has a stable cryptographic identity — useful for any future
+# macOS subsystem that tracks apps by signature (TCC permissions, the
+# data-protection keychain, etc.).
+#
+# Note: as of the setup-token-based auth flow, the app no longer reads
+# Claude Code's keychain entry, so this identity is no longer required to
+# avoid recurring "Always Allow" prompts. It's still recommended though —
+# ad-hoc signed binaries look like a new app on every rebuild, which can
+# trigger unrelated re-prompts (e.g. Gatekeeper, future TCC permissions).
 #
 # Idempotent: if a usable "ClaudeUsageBar Dev" identity already exists,
-# this script exits cleanly without touching the keychain. That matters
-# for updates — regenerating the cert would invalidate the existing ACL
-# grant and re-trigger the prompt.
+# this script exits cleanly without touching the keychain.
 
 set -euo pipefail
 

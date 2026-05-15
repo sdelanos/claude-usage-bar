@@ -10,12 +10,18 @@ let package = Package(
         .executableTarget(
             name: "ClaudeUsageBar",
             path: "Sources/ClaudeUsageBar",
-            exclude: ["Resources"]
+            exclude: ["Resources"],
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
         ),
         .testTarget(
             name: "ClaudeUsageBarTests",
             dependencies: ["ClaudeUsageBar"],
-            path: "Tests/ClaudeUsageBarTests"
+            path: "Tests/ClaudeUsageBarTests",
+            swiftSettings: [
+                .swiftLanguageMode(.v6)
+            ]
         )
     ]
 )

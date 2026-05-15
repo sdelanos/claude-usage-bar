@@ -1,7 +1,7 @@
 import Foundation
 
 /// Reasons a `UsageClient` call can fail.
-enum UsageClientError: Error, Equatable, CustomStringConvertible {
+enum UsageClientError: Error, Equatable, Sendable, CustomStringConvertible {
     /// One or more required rate-limit headers were absent or unparseable.
     /// The associated value lists every header that contributed to the
     /// failure, so the user gets one diagnostic instead of N round-trips.
@@ -11,9 +11,11 @@ enum UsageClientError: Error, Equatable, CustomStringConvertible {
     /// re-setup flow without parsing a body.
     case unauthorized
     /// The Anthropic API returned a non-2xx, non-401 response. The body is
-    /// truncated to 200 chars in the description so it stays readable in the
-    /// UI.
-    case httpError(Int, String)
+    /// intentionally not surfaced to the user — it can echo headers /
+    /// request IDs / occasionally token-bearing context; we keep the raw
+    /// body only for `debugDescription` so logs can capture it without it
+    /// reaching the UI.
+    case httpError(status: Int, debugBody: String)
     /// `URLSession` handed us a response object that isn't HTTP.
     case invalidResponse
 
@@ -23,13 +25,47 @@ enum UsageClientError: Error, Equatable, CustomStringConvertible {
             return "Missing or unparseable headers: \(names.joined(separator: ", "))"
         case .unauthorized:
             return "Token rejected (401). Re-run `claude setup-token` and paste the new token."
-        case .httpError(let code, let body):
-            let trimmed = body.count > 200 ? String(body.prefix(200)) + "…" : body
-            return "HTTP \(code): \(trimmed)"
+        case .httpError(let code, _):
+            return "Anthropic returned HTTP \(code). Try again in a moment."
         case .invalidResponse:
-            return "Invalid HTTP response."
+            return "Anthropic returned an unexpected response shape."
         }
     }
+
+    /// User-facing translation. See `UserFacingError`.
+    var userFacing: UserFacingError {
+        switch self {
+        case .missingHeaders(let names):
+            return .init(
+                message: "Anthropic didn't return the expected rate-limit headers (\(names.count) missing). Try again.",
+                isRetryable: true
+            )
+        case .unauthorized:
+            // Should never reach the .error state — UsageService catches this
+            // and transitions to .needsSetup(.tokenRejected). Included for
+            // completeness only.
+            return .init(
+                message: "Token rejected. Re-run `claude setup-token`.",
+                isRetryable: false
+            )
+        case .httpError(let code, _):
+            return .init(
+                message: "Anthropic returned HTTP \(code). Try again in a moment.",
+                isRetryable: true
+            )
+        case .invalidResponse:
+            return .init(
+                message: "Unexpected response from Anthropic. Try again, or file an issue if it persists.",
+                isRetryable: true
+            )
+        }
+    }
+}
+
+/// The abstraction the rest of the app depends on. `UsageClient` is the
+/// production implementation; tests inject mocks.
+protocol UsageFetching: Sendable {
+    func fetch(accessToken: SecretToken) async throws -> Usage
 }
 
 /// Fetches Claude API rate-limit information by sending the cheapest possible
@@ -41,23 +77,51 @@ enum UsageClientError: Error, Equatable, CustomStringConvertible {
 /// `claude-haiku-4-5` costs a few tokens — negligible compared to a single
 /// chat interaction.
 ///
-/// `parse(headers:at:)` is the pure logic and is unit-tested. `fetch(...)`
-/// wires it to `URLSession`.
-struct UsageClient {
+/// `parse(headers:at:)` is the pure logic and is unit-tested.
+/// `fetch(accessToken:)` wires it to `URLSession`.
+struct UsageClient: UsageFetching {
 
-    static let endpoint = URL(string: "https://api.anthropic.com/v1/messages")!
+    /// Hard-coded URL; failing this at first launch would be a build-time
+    /// bug we want to catch in tests, not a runtime crash. We use an
+    /// `_unsafelyUnwrapped`-equivalent guard and fall back to a sentinel
+    /// rather than `!` so the binary doesn't crash if someone breaks the
+    /// constant in a refactor.
+    static let endpoint: URL = {
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
+            assertionFailure("UsageClient.endpoint constant is malformed")
+            return URL(fileURLWithPath: "/dev/null")
+        }
+        return url
+    }()
+
+    /// Per-request timeout. 15 s is long enough for a single API round-trip
+    /// over flaky Wi-Fi, short enough that the menu-bar doesn't sit on `…`
+    /// for the full URLSession default of 60 s.
+    static let requestTimeout: TimeInterval = 15
 
     // MARK: - Header names
 
     static let h5hUtil         = "anthropic-ratelimit-unified-5h-utilization"
     static let h5hReset        = "anthropic-ratelimit-unified-5h-reset"
-    static let h5hStatus       = "anthropic-ratelimit-unified-5h-status"
     static let h7dUtil         = "anthropic-ratelimit-unified-7d-utilization"
     static let h7dReset        = "anthropic-ratelimit-unified-7d-reset"
-    static let h7dStatus       = "anthropic-ratelimit-unified-7d-status"
-    static let hRepresentative = "anthropic-ratelimit-unified-representative-claim"
     static let hOverageStatus  = "anthropic-ratelimit-unified-overage-status"
     static let hOverageReason  = "anthropic-ratelimit-unified-overage-disabled-reason"
+
+    private let session: URLSession
+    private let userAgent: String
+
+    init(session: URLSession = .shared, userAgent: String = UsageClient.defaultUserAgent) {
+        self.session = session
+        self.userAgent = userAgent
+    }
+
+    /// Defaults to `ClaudeUsageBar/<CFBundleShortVersionString>` so Anthropic
+    /// can identify the polling client if they ever start segmenting traffic.
+    static let defaultUserAgent: String = {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "dev"
+        return "ClaudeUsageBar/\(version) (+https://github.com/sdelanos/claude-usage-bar)"
+    }()
 
     // MARK: - Parsing
 
@@ -85,16 +149,13 @@ struct UsageClient {
             return raw
         }
 
-        let util5            = headerDouble(h5hUtil)
-        let reset5           = headerDouble(h5hReset)
-        let status5          = headerString(h5hStatus)
-        let util7            = headerDouble(h7dUtil)
-        let reset7           = headerDouble(h7dReset)
-        let status7          = headerString(h7dStatus)
-        let representativeRaw = headerString(hRepresentative)
-        let overageRaw       = headerString(hOverageStatus)
+        let util5     = headerDouble(h5hUtil)
+        let reset5    = headerDouble(h5hReset)
+        let util7     = headerDouble(h7dUtil)
+        let reset7    = headerDouble(h7dReset)
+        let overageRaw = headerString(hOverageStatus)
 
-        if !missing.isEmpty {
+        guard let util5, let reset5, let util7, let reset7, let overageRaw else {
             throw UsageClientError.missingHeaders(missing)
         }
 
@@ -103,18 +164,9 @@ struct UsageClient {
             .trimmingCharacters(in: .whitespaces)
 
         return Usage(
-            fiveHour: .init(
-                utilization: util5!,
-                resetAt: Date(timeIntervalSince1970: reset5!),
-                status: status5!
-            ),
-            sevenDay: .init(
-                utilization: util7!,
-                resetAt: Date(timeIntervalSince1970: reset7!),
-                status: status7!
-            ),
-            representative: .init(rawValue: representativeRaw!),
-            overage: .init(rawValue: overageRaw!),
+            fiveHour: .init(utilization: util5, resetAt: Date(timeIntervalSince1970: reset5)),
+            sevenDay: .init(utilization: util7, resetAt: Date(timeIntervalSince1970: reset7)),
+            overage: .init(rawValue: overageRaw),
             overageDisabledReason: (overageReason?.isEmpty ?? true) ? nil : overageReason,
             fetchedAt: fetchedAt
         )
@@ -125,17 +177,14 @@ struct UsageClient {
     /// Sends a 1-token completion to `claude-haiku-4-5` and parses the
     /// rate-limit headers from the response. Throws `UsageClientError` on
     /// transport / HTTP failures and the underlying parsing errors.
-    ///
-    /// - Parameters:
-    ///   - accessToken: OAuth bearer token from the Claude Code Keychain entry.
-    ///   - session: injection point for tests; defaults to `URLSession.shared`.
-    func fetch(accessToken: String, session: URLSession = .shared) async throws -> Usage {
-        var request = URLRequest(url: Self.endpoint)
+    func fetch(accessToken: SecretToken) async throws -> Usage {
+        var request = URLRequest(url: Self.endpoint, timeoutInterval: Self.requestTimeout)
         request.httpMethod = "POST"
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(accessToken.reveal())", forHTTPHeaderField: "Authorization")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
 
         let body: [String: Any] = [
             "model": "claude-haiku-4-5",
@@ -152,8 +201,9 @@ struct UsageClient {
             throw UsageClientError.unauthorized
         }
         guard (200..<300).contains(http.statusCode) else {
-            let text = String(data: data, encoding: .utf8) ?? ""
-            throw UsageClientError.httpError(http.statusCode, text)
+            // Body is kept for debugDescription / Logger, not for UI.
+            let debugBody = String(data: data.prefix(2048), encoding: .utf8) ?? ""
+            throw UsageClientError.httpError(status: http.statusCode, debugBody: debugBody)
         }
         return try Self.parse(headers: http, at: Date())
     }

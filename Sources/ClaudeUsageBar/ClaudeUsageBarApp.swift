@@ -8,6 +8,8 @@ struct ClaudeUsageBarApp: App {
     var body: some Scene {
         MenuBarExtra {
             MenuContentView(service: service, launchAtLogin: launchAtLogin)
+                .task { service.start() }
+                .onAppear { launchAtLogin.refreshStatus() }
         } label: {
             MenuBarLabel(service: service)
         }
@@ -18,32 +20,30 @@ struct ClaudeUsageBarApp: App {
 private struct MenuBarLabel: View {
     @ObservedObject var service: UsageService
 
-    private static let icon = MenuBarIcon.load(size: 18)
-
     var body: some View {
         HStack(spacing: 4) {
-            if let icon = Self.icon {
+            if let icon = MenuBarIcon.image(size: 18) {
                 Image(nsImage: icon)
             } else {
                 Image(systemName: "gauge.with.dots.needle.50percent")
             }
-            Text(text)
-                .monospacedDigit()
+            content
         }
     }
 
-    private var text: String {
+    @ViewBuilder
+    private var content: some View {
         switch service.state {
         case .loading:
-            return "…"
+            Text("…").monospacedDigit()
         case .loaded(let usage):
-            let fiveHour = Int((usage.fiveHour.utilization * 100).rounded())
-            let sevenDay = Int((usage.sevenDay.utilization * 100).rounded())
-            return "\(fiveHour)% · \(sevenDay)%"
+            Text("\(usage.fiveHour.percent)% · \(usage.sevenDay.percent)%")
+                .monospacedDigit()
         case .needsSetup:
-            return "Setup"
+            Image(systemName: "gearshape.fill")
         case .error:
-            return "!"
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(.red)
         }
     }
 }

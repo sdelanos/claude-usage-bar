@@ -7,9 +7,8 @@ struct UsageHumanOverageReasonTests {
 
     private func usage(reason: String?) -> Usage {
         Usage(
-            fiveHour: .init(utilization: 0.5, resetAt: .distantFuture, status: "allowed"),
-            sevenDay: .init(utilization: 0.5, resetAt: .distantFuture, status: "allowed"),
-            representative: .fiveHour,
+            fiveHour: .init(utilization: 0.5, resetAt: .distantFuture),
+            sevenDay: .init(utilization: 0.5, resetAt: .distantFuture),
             overage: .rejected,
             overageDisabledReason: reason,
             fetchedAt: Date()
@@ -40,57 +39,9 @@ struct UsageHumanOverageReasonTests {
                 "Overage isn't allowed on your current plan.")
     }
 
-    @Test("empty string is treated like nil")
-    func emptyStringTreatedAsNil() {
-        #expect(usage(reason: "").humanOverageReason ==
-                "Overage isn't allowed on your current plan.")
-    }
-
-    @Test("unknown codes are humanized (snake_case → Title Case)")
-    func unknownCodeIsHumanized() {
+    @Test("unknown codes fall back to the generic plan message (no leakage of raw codes)")
+    func unknownCodeFallsBack() {
         #expect(usage(reason: "future_unseen_code").humanOverageReason ==
-                "Future Unseen Code")
-    }
-}
-
-@Suite("Usage.displayPercent")
-struct UsageDisplayPercentTests {
-
-    private func usage(representative: Usage.RepresentativeClaim,
-                       five: Double,
-                       seven: Double) -> Usage {
-        Usage(
-            fiveHour: .init(utilization: five, resetAt: .distantFuture, status: "allowed"),
-            sevenDay: .init(utilization: seven, resetAt: .distantFuture, status: "allowed"),
-            representative: representative,
-            overage: .allowed,
-            overageDisabledReason: nil,
-            fetchedAt: Date()
-        )
-    }
-
-    @Test("representative .fiveHour returns the 5h percentage")
-    func fiveHourRepresentativeUsesFiveHour() {
-        #expect(usage(representative: .fiveHour, five: 0.42, seven: 0.71).displayPercent == 42)
-    }
-
-    @Test("representative .sevenDay returns the 7d percentage")
-    func sevenDayRepresentativeUsesSevenDay() {
-        #expect(usage(representative: .sevenDay, five: 0.42, seven: 0.71).displayPercent == 71)
-    }
-
-    @Test("unknown representative falls back to the 5h window")
-    func otherFallsBackToFiveHour() {
-        #expect(usage(representative: .other("lunar_cycle"), five: 0.42, seven: 0.71).displayPercent == 42)
-    }
-
-    @Test("over-1 utilization is clamped to 100 %")
-    func clampsAbove() {
-        #expect(usage(representative: .fiveHour, five: 1.5, seven: 0).displayPercent == 100)
-    }
-
-    @Test("negative utilization is clamped to 0 %")
-    func clampsBelow() {
-        #expect(usage(representative: .fiveHour, five: -0.2, seven: 0).displayPercent == 0)
+                "Overage isn't allowed on your current plan.")
     }
 }

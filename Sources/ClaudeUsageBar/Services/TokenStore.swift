@@ -2,7 +2,7 @@ import Foundation
 import Security
 
 /// Failure modes for the local token cache.
-enum TokenStoreError: Error, Equatable, CustomStringConvertible {
+enum TokenStoreError: Error, Equatable, Sendable, CustomStringConvertible {
     /// `SecItem*` returned a non-success status.
     case keychainStatus(OSStatus)
     /// The stored keychain entry is present but isn't valid UTF-8.
@@ -20,60 +20,91 @@ enum TokenStoreError: Error, Equatable, CustomStringConvertible {
             return "That doesn't look like a Claude long-lived token."
         }
     }
+
+    /// User-facing translation. See `UserFacingError`.
+    var userFacing: UserFacingError {
+        switch self {
+        case .invalidFormat:
+            return .init(
+                message: "That doesn't look like a token. Paste the full `sk-ant-…` string from `claude setup-token`.",
+                isRetryable: false
+            )
+        case .malformedData:
+            return .init(
+                message: "The stored token is corrupted. Re-run `claude setup-token` and paste the new token.",
+                isRetryable: false
+            )
+        case .keychainStatus(errSecAuthFailed):
+            return .init(
+                message: "Couldn't unlock the keychain. Sign in to macOS and try again.",
+                isRetryable: true
+            )
+        case .keychainStatus:
+            return .init(
+                message: "Couldn't save the token. Try again.",
+                isRetryable: true
+            )
+        }
+    }
 }
 
 /// Persists the user's long-lived `claude setup-token` in a keychain item
-/// that we own (`dev.claude-usage-bar.oauth-token`).
+/// the app owns (service `dev.claude-usage-bar.oauth-token`).
 ///
-/// Why a separate item, not Claude Code's `Claude Code-credentials`?
-/// Claude Code rewrites its keychain entry on every OAuth token refresh, which
-/// resets the ACL — every rewrite re-triggers the "Always Allow" prompt on
-/// our side. Tokens minted by `claude setup-token` are not stored by Claude
-/// Code at all; they are 1-year bearers that the user pastes in once. Storing
-/// them under our own service name means nothing else ever touches the item.
+/// Behind a protocol so `UsageService` can be unit-tested without ever
+/// touching the real keychain.
+protocol TokenStoring: Sendable {
+    /// Returns the stored token, or `nil` if none has been saved yet.
+    func load() throws -> String?
+    /// Persists `token` after a format check. Replaces any existing entry.
+    func save(_ token: String) throws
+    /// Removes the stored token, if any. No-op if nothing was saved.
+    func delete() throws
+}
+
+/// Loose syntactic check on a pasted token.
+///
+/// Catches the common paste mistakes (empty field, whole `export …` line,
+/// trailing newline) without hard-coding a specific suffix Anthropic might
+/// change later. The `sk-ant-` prefix is documented; relaxing further would
+/// let a Console API key (`sk-…`) through validation, then 401, with no
+/// nicer guidance than "Anthropic rejected that token."
+enum TokenFormat {
+    /// Minimum length we'll accept after trimming whitespace. setup-token
+    /// currently mints ~108-char tokens; 40 is the safety floor below which
+    /// nothing real fits.
+    static let minimumLength = 40
+    /// Sanity ceiling to bail out of pathological pastes early.
+    static let maximumLength = 4096
+
+    static func looksValid(_ candidate: String) -> Bool {
+        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard (minimumLength...maximumLength).contains(trimmed.count) else { return false }
+        guard !trimmed.contains(where: { $0.isWhitespace }) else { return false }
+        return trimmed.hasPrefix("sk-ant-")
+    }
+}
+
+/// Keychain-backed implementation of `TokenStoring`. Stores a single entry
+/// under a configurable service name (`Self.defaultService` in production,
+/// per-test names in `TokenStoreTests`).
 ///
 /// The token never leaves the keychain on disk, is never logged, and is only
 /// sent to `api.anthropic.com` as a `Bearer` credential.
-enum TokenStore {
+struct KeychainTokenStore: TokenStoring {
+    static let defaultService = "dev.claude-usage-bar.oauth-token"
+    static let defaultAccount = "default"
 
-    /// Keychain service identifier. Distinct from Claude Code's so the two
-    /// items can coexist on the same machine.
-    static let service = "dev.claude-usage-bar.oauth-token"
-    /// Single-account app — we never need more than one token at a time.
-    static let account = "default"
+    let service: String
+    let account: String
 
-    // MARK: - Public API
-
-    /// Returns the stored token, or `nil` if none has been saved yet.
-    static func load() throws -> String? {
-        try load(service: service)
+    init(service: String = KeychainTokenStore.defaultService,
+         account: String = KeychainTokenStore.defaultAccount) {
+        self.service = service
+        self.account = account
     }
 
-    /// Persists `token` after a format check. Replaces any existing entry.
-    static func save(_ token: String) throws {
-        try save(token, service: service)
-    }
-
-    /// Removes the stored token, if any. No-op if nothing was saved.
-    static func delete() throws {
-        try delete(service: service)
-    }
-
-    /// Loose syntactic check on a pasted token. Catches the common paste
-    /// mistakes (empty field, whole `export …` line, trailing newline) without
-    /// hard-coding a specific prefix that Anthropic could change later.
-    static func looksValid(_ candidate: String) -> Bool {
-        let trimmed = candidate.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count >= 40, trimmed.count <= 4096 else { return false }
-        guard !trimmed.contains(where: { $0.isWhitespace }) else { return false }
-        // setup-token currently mints `sk-ant-…`. Accept anything starting
-        // with `sk-` so a future prefix doesn't break paste.
-        return trimmed.hasPrefix("sk-")
-    }
-
-    // MARK: - Service-parameterised core (for tests)
-
-    static func load(service: String, account: String = TokenStore.account) throws -> String? {
+    func load() throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -98,9 +129,9 @@ enum TokenStore {
         }
     }
 
-    static func save(_ token: String, service: String, account: String = TokenStore.account) throws {
+    func save(_ token: String) throws {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard looksValid(trimmed) else { throw TokenStoreError.invalidFormat }
+        guard TokenFormat.looksValid(trimmed) else { throw TokenStoreError.invalidFormat }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -128,7 +159,7 @@ enum TokenStore {
         }
     }
 
-    static func delete(service: String, account: String = TokenStore.account) throws {
+    func delete() throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -138,5 +169,29 @@ enum TokenStore {
         guard status == errSecSuccess || status == errSecItemNotFound else {
             throw TokenStoreError.keychainStatus(status)
         }
+    }
+}
+
+/// In-memory store for tests. Not exposed in production paths.
+final class InMemoryTokenStore: TokenStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: String?
+
+    init(_ initial: String? = nil) {
+        self.stored = initial
+    }
+
+    func load() throws -> String? {
+        lock.withLock { stored }
+    }
+
+    func save(_ token: String) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard TokenFormat.looksValid(trimmed) else { throw TokenStoreError.invalidFormat }
+        lock.withLock { stored = trimmed }
+    }
+
+    func delete() throws {
+        lock.withLock { stored = nil }
     }
 }

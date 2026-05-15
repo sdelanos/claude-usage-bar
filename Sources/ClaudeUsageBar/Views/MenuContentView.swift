@@ -1,27 +1,54 @@
 import SwiftUI
 
+/// Refresh-cadence options exposed in the dropdown picker. Centralized as a
+/// data-driven enum so the picker stays declarative and adding / removing
+/// a value is a one-line change.
+enum RefreshInterval: TimeInterval, CaseIterable, Identifiable {
+    case manual = 0
+    case oneMinute = 60
+    case fiveMinutes = 300
+    case fifteenMinutes = 900
+    case thirtyMinutes = 1800
+
+    var id: TimeInterval { rawValue }
+
+    var label: String {
+        switch self {
+        case .manual:          return "Manual only"
+        case .oneMinute:       return "1 min"
+        case .fiveMinutes:     return "5 min"
+        case .fifteenMinutes:  return "15 min"
+        case .thirtyMinutes:   return "30 min"
+        }
+    }
+}
+
 struct MenuContentView: View {
     @ObservedObject var service: UsageService
     @ObservedObject var launchAtLogin: LaunchAtLoginService
 
+    private static let dropdownWidth: CGFloat = 320
+    private static let outerSpacing: CGFloat = 14
+    private static let outerPadding: CGFloat = 16
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: Self.outerSpacing) {
             header
             statusBody
             Divider()
             controls
         }
-        .padding(16)
-        .frame(width: 320)
+        .padding(Self.outerPadding)
+        .frame(minWidth: Self.dropdownWidth,
+               idealWidth: Self.dropdownWidth,
+               maxWidth: Self.dropdownWidth * 1.2)
     }
 
     // MARK: - Header
 
-    private static let headerIcon = MenuBarIcon.load(size: 16)
-
     private var header: some View {
         HStack(spacing: 8) {
-            if let icon = Self.headerIcon {
+            if let icon = MenuBarIcon.image(size: 16) {
                 Image(nsImage: icon)
             } else {
                 Image(systemName: "gauge.with.dots.needle.50percent")
@@ -66,11 +93,13 @@ struct MenuContentView: View {
                 UsageRow(
                     title: "Current session",
                     resetAt: usage.fiveHour.resetAt,
+                    percent: usage.fiveHour.percent,
                     fraction: usage.fiveHour.utilization
                 )
                 UsageRow(
                     title: "Weekly limit",
                     resetAt: usage.sevenDay.resetAt,
+                    percent: usage.sevenDay.percent,
                     fraction: usage.sevenDay.utilization
                 )
                 if usage.overage == .rejected {
@@ -81,15 +110,9 @@ struct MenuContentView: View {
         case .needsSetup(let reason):
             SetupView(service: service, reason: reason)
 
-        case .error(let message):
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "exclamationmark.octagon.fill")
-                    .foregroundStyle(.red)
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        case .error(let userFacing):
+            ErrorRow(error: userFacing) {
+                Task { await service.refresh() }
             }
         }
     }
@@ -99,25 +122,42 @@ struct MenuContentView: View {
         return false
     }
 
+    private var isAuthenticated: Bool {
+        switch service.state {
+        case .loaded, .error: return true
+        case .loading:        return service.state == .loading
+        case .needsSetup:     return false
+        }
+    }
+
     // MARK: - Controls
 
     private var controls: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("Refresh every")
-                    .font(.subheadline)
-                Spacer()
-                Picker("", selection: $service.refreshIntervalSeconds) {
-                    Text("1 min").tag(TimeInterval(60))
-                    Text("5 min").tag(TimeInterval(300))
-                    Text("15 min").tag(TimeInterval(900))
-                    Text("30 min").tag(TimeInterval(1800))
-                }
-                .labelsHidden()
-                .controlSize(.small)
-                .fixedSize()
-            }
+            refreshIntervalRow
+            launchAtLoginRow
+            footer
+        }
+    }
 
+    private var refreshIntervalRow: some View {
+        HStack {
+            Text("Refresh every")
+                .font(.subheadline)
+            Spacer()
+            Picker("", selection: $service.refreshIntervalSeconds) {
+                ForEach(RefreshInterval.allCases) { option in
+                    Text(option.label).tag(option.rawValue)
+                }
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .fixedSize()
+        }
+    }
+
+    private var launchAtLoginRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
             Toggle(isOn: Binding(
                 get: { launchAtLogin.isEnabled },
                 set: { launchAtLogin.setEnabled($0) }
@@ -128,42 +168,65 @@ struct MenuContentView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
-            if let err = launchAtLogin.lastError {
+            if launchAtLogin.requiresApproval {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(launchAtLogin.lastError ?? "")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Open Settings") {
+                        launchAtLogin.openLoginItemsSettings()
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+                .fixedSize(horizontal: false, vertical: true)
+            } else if let err = launchAtLogin.lastError {
                 Text(err)
                     .font(.caption2)
                     .foregroundStyle(.red)
             }
+        }
+    }
 
-            HStack {
-                Spacer()
-                Button {
-                    NSApp.terminate(nil)
-                } label: {
-                    Text("Quit")
+    private var footer: some View {
+        HStack {
+            if isAuthenticated, !isSetupActive {
+                Button("Sign out") {
+                    service.signOut()
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .foregroundStyle(.secondary)
-                .keyboardShortcut("q", modifiers: [.command])
+                .help("Forget the saved token and return to setup")
             }
-            .padding(.top, 2)
+            Spacer()
+            Button("Quit") {
+                NSApp.terminate(nil)
+            }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .foregroundStyle(.secondary)
+            .keyboardShortcut("q", modifiers: [.command])
         }
+        .padding(.top, 2)
     }
 }
 
 // MARK: - Usage row
 
-private struct UsageRow: View {
+private struct UsageRow: View, Equatable {
     let title: String
     let resetAt: Date
+    let percent: Int
     let fraction: Double
 
-    private var percent: Int {
-        Int((max(0, min(1, fraction)) * 100).rounded())
-    }
+    private static let rowSpacing: CGFloat = 8
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: Self.rowSpacing) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -177,16 +240,17 @@ private struct UsageRow: View {
                     .font(.subheadline.monospacedDigit().weight(.semibold))
                     .foregroundStyle(Color.claudeBlue)
             }
-            CapsuleBar(fraction: fraction, color: .claudeBlue)
+            CapsuleBar(fraction: fraction)
         }
     }
 }
 
 // MARK: - Capsule bar
 
-private struct CapsuleBar: View {
+private struct CapsuleBar: View, Equatable {
     let fraction: Double
-    let color: Color
+
+    private static let barHeight: CGFloat = 7
 
     var body: some View {
         GeometryReader { geo in
@@ -194,17 +258,17 @@ private struct CapsuleBar: View {
                 Capsule()
                     .fill(Color.claudeTrack)
                 Capsule()
-                    .fill(color)
+                    .fill(Color.claudeBlue)
                     .frame(width: geo.size.width * max(0, min(1, fraction)))
             }
         }
-        .frame(height: 7)
+        .frame(height: Self.barHeight)
     }
 }
 
 // MARK: - Overage banner
 
-private struct OverageBanner: View {
+private struct OverageBanner: View, Equatable {
     let reason: String
 
     var body: some View {
@@ -224,10 +288,37 @@ private struct OverageBanner: View {
             Spacer(minLength: 0)
         }
         .padding(10)
-        .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 8))
+        .background(Color.claudeWarnBackground, in: RoundedRectangle(cornerRadius: 8))
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.orange.opacity(0.25), lineWidth: 0.5)
+                .stroke(Color.claudeWarnBorder, lineWidth: 0.5)
         )
+    }
+}
+
+// MARK: - Error row
+
+private struct ErrorRow: View {
+    let error: UserFacingError
+    let onRetry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "exclamationmark.octagon.fill")
+                .foregroundStyle(.red)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(error.message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                if error.isRetryable {
+                    Button("Retry") { onRetry() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+            }
+            Spacer(minLength: 0)
+        }
     }
 }

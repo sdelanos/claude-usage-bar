@@ -1,14 +1,15 @@
-import SwiftUI
 import AppKit
+import SwiftUI
 
 /// Inline setup card shown in the dropdown when the user has no usable token.
+///
 /// Walks them through `claude setup-token`, lets them paste the result, and
 /// hands the token to `UsageService.saveToken` for verification.
 ///
-/// Lives in the dropdown rather than a separate sheet because sheets attached
-/// to a `MenuBarExtra` window misbehave (focus loss closes the popover).
+/// Lives in the dropdown rather than a separate sheet because sheets
+/// attached to a `MenuBarExtra` window misbehave (focus loss closes the
+/// popover).
 struct SetupView: View {
-
     @ObservedObject var service: UsageService
     let reason: UsageService.SetupReason
 
@@ -18,6 +19,7 @@ struct SetupView: View {
     @State private var didCopyCommand: Bool = false
 
     private static let command = "claude setup-token"
+    private static let copyFeedbackDelay: Duration = .milliseconds(1500)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -37,9 +39,7 @@ struct SetupView: View {
                         .textSelection(.enabled)
                     Spacer(minLength: 0)
                     Button(action: copyCommand) {
-                        Image(systemName: didCopyCommand
-                              ? "checkmark"
-                              : "doc.on.doc")
+                        Image(systemName: didCopyCommand ? "checkmark" : "doc.on.doc")
                     }
                     .buttonStyle(.borderless)
                     .help("Copy command")
@@ -81,9 +81,15 @@ struct SetupView: View {
                     Text(isSaving ? "Saving…" : "Save")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(!TokenStore.looksValid(tokenInput) || isSaving)
+                .disabled(!TokenFormat.looksValid(tokenInput) || isSaving)
                 .keyboardShortcut(.return, modifiers: [])
             }
+        }
+        .onDisappear {
+            // Drop any in-flight pasted token from the view's @State when
+            // the user dismisses the dropdown.
+            tokenInput = ""
+            inlineError = nil
         }
     }
 
@@ -124,34 +130,38 @@ struct SetupView: View {
         pb.clearContents()
         pb.setString(Self.command, forType: .string)
         didCopyCommand = true
-        Task {
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            await MainActor.run { didCopyCommand = false }
+        Task { @MainActor in
+            try? await Task.sleep(for: Self.copyFeedbackDelay)
+            didCopyCommand = false
         }
     }
 
     private func saveIfReady() {
         let candidate = tokenInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard TokenStore.looksValid(candidate), !isSaving else { return }
+        guard TokenFormat.looksValid(candidate), !isSaving else { return }
         inlineError = nil
         isSaving = true
-        Task {
-            defer { isSaving = false }
+
+        Task { @MainActor in
+            defer {
+                isSaving = false
+                // Wipe the paste regardless of outcome — failure shouldn't
+                // leave a real token sitting in @State.
+                tokenInput = ""
+            }
             do {
                 try await service.saveToken(candidate)
-                // refresh() runs as part of saveToken; if it ended in
-                // .needsSetup(.tokenRejected) the token didn't actually work.
                 if case .needsSetup(.tokenRejected) = service.state {
                     inlineError = "Anthropic rejected that token. Double-check you pasted the full output of `claude setup-token`."
-                } else if case .error(let msg) = service.state {
-                    inlineError = msg
-                } else {
-                    tokenInput = ""
+                } else if case .error(let userFacing) = service.state {
+                    inlineError = userFacing.message
                 }
             } catch TokenStoreError.invalidFormat {
-                inlineError = "That doesn't look like a token. Paste the full `sk-ant-…` string."
+                inlineError = TokenStoreError.invalidFormat.userFacing.message
+            } catch let error as TokenStoreError {
+                inlineError = error.userFacing.message
             } catch {
-                inlineError = "Couldn't save the token: \(error)"
+                inlineError = "Couldn't save the token. Try again."
             }
         }
     }

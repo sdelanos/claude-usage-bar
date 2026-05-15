@@ -8,6 +8,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- First-run authentication setup card in the dropdown. Walks the user
+  through `claude setup-token`, accepts the resulting long-lived token
+  via paste, validates format, and verifies live by triggering a refresh.
+- New `TokenStore` service that owns a keychain item under the dedicated
+  service name `dev.claude-usage-bar.oauth-token`, with round-trip and
+  format-validation test coverage.
+- 401 responses from Anthropic surface as a dedicated `unauthorized`
+  error and transition the menubar to the re-auth setup card, so an
+  expired/revoked token recovers in a single paste.
+
+### Changed
+- Authentication switched from reading Claude Code's `Claude Code-credentials`
+  keychain entry to using a 1-year token minted by `claude setup-token`
+  and stored in the app's own keychain item. The recurring "Always Allow"
+  prompt — caused by Claude Code rewriting its shared entry on every OAuth
+  refresh — is now structurally avoided.
+- README, SECURITY, install messaging updated to reflect the
+  setup-token-based flow and the new privacy guarantees.
+
+### Removed
+- `KeychainReader` and its tests. The app no longer touches the Claude
+  Code-credentials keychain item.
+
+### Migration
+- Existing users will see "Setup" in the menubar on next launch and a
+  setup card in the dropdown. Run `claude setup-token` once, paste the
+  output, save. No further keychain prompts.
+
+## [0.1.0] - 2026-05-13
+
+### Added
 - One-shot install script (`install.sh`) that checks every prerequisite,
   clones, builds, signs, and installs in a single curl-pipe-bash.
 - Pure-logic test coverage for `ResetFormatter`, `Usage.humanOverageReason`,

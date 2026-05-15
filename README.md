@@ -6,8 +6,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 A tiny macOS menu-bar app that shows your Claude API rate-limit usage at a
-glance. No accounts, no telemetry, no separate login — it reuses the OAuth
-token Claude Code already stored in your Keychain.
+glance. No accounts, no telemetry, no separate login — it authenticates with
+a long-lived token from your existing Claude subscription.
 
 ```
 ☀ 24% · 41%
@@ -19,68 +19,74 @@ token Claude Code already stored in your Keychain.
 Click the icon to see reset times, change refresh frequency, toggle launch
 at login, or quit.
 
-## Why build from source
-
-The short answer: macOS's Keychain ACL only persists `Always Allow` grants
-for apps with a **stable code-signing identity**. Ad-hoc signed binaries
-(the kind you can hand out without an Apple Developer account) get
-re-prompted for the Keychain password on every launch — even after you
-click "Always Allow".
-
-So instead of shipping a pre-built `.app`, this repo gives you a 30-second
-one-time setup that creates a local self-signed identity on your machine.
-After that, the Keychain prompt happens exactly once.
-
 ## Install
+
+```sh
+brew tap sdelanos/claude-usage-bar
+brew install --cask claude-usage-bar
+open -a "ClaudeUsageBar"
+```
+
+That installs a prebuilt `.app` from the [GitHub releases page](https://github.com/sdelanos/claude-usage-bar/releases)
+and drops it in `/Applications`. macOS may show a Gatekeeper warning on
+first launch because the bundle is ad-hoc signed — the cask removes the
+quarantine xattr automatically, but if you still see "unidentified
+developer", right-click the app and choose **Open** once.
+
+### First-run setup (~30 seconds)
+
+1. Click the menu-bar icon. The dropdown shows a **Set up authentication**
+   card.
+2. In a Terminal, run:
+   ```sh
+   claude setup-token
+   ```
+3. Approve the OAuth flow in your browser. The CLI prints a token to the
+   terminal.
+4. Paste the token into the app's input field and click **Save**.
+
+Done. The token is good for one year and is stored in a keychain item the
+app owns (`dev.claude-usage-bar.oauth-token`) — no recurring keychain
+prompts, no shared state with Claude Code's own credential entry.
+
+When the token eventually expires or is revoked, the menubar shows
+"Setup" again and the dropdown prompts you to re-run `claude setup-token`.
+
+### Requirements
+
+| What | Why | How to install |
+|---|---|---|
+| macOS 13+ (Ventura) | `MenuBarExtra` SwiftUI, `SMAppService` for "Launch at login" | — |
+| [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) with a Pro/Max/Team/Enterprise plan | `claude setup-token` mints the long-lived token the app uses; the command requires a paid Claude subscription | Required at first-run setup, not at install |
+
+That's it for the cask path. No Xcode, no toolchain, no signing.
+
+## Build from source
+
+If you'd rather not pull a prebuilt binary, the source path is one
+command:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/sdelanos/claude-usage-bar/main/install.sh | bash
 ```
 
-That's it. The script:
+The script clones, builds, signs locally, installs to `/Applications`,
+and launches. Same first-run setup as above.
 
-1. Checks you're on macOS 13+ with a working Swift toolchain.
-2. Clones this repo into a temp directory.
-3. Installs (once) a local code-signing identity in your login keychain.
-4. Builds `ClaudeUsageBar.app`, signed with that identity.
-5. Moves it to `/Applications` and launches it.
-
-First launch: macOS asks once for Keychain access — click **Always Allow**.
-You'll never see the prompt again. To update later, re-run the same command.
-
-### Want to inspect first?
-
-Reasonable. The script is short and lives at
-[`install.sh`](install.sh). Read it, then run it locally with:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/sdelanos/claude-usage-bar/main/install.sh > install.sh
-less install.sh
-bash install.sh
-```
-
-### Requirements
-
-The install script verifies every one of these before doing anything, and
-exits with a clear error if any is missing.
+Additional build-time prerequisites (the script verifies them all up
+front and exits with a single combined report if anything's missing):
 
 | What | Why | How to install |
 |---|---|---|
-| macOS 13+ (Ventura) | `MenuBarExtra` SwiftUI, `SMAppService` for "Launch at login" | — |
 | Xcode Command Line Tools | provides `git`, `codesign`, `security`, system `openssl` | `xcode-select --install` |
-| A working Swift 6 toolchain | `swift build` to compile the app | Comes with CLT, but if `swift build` errors with `Undefined symbols: Package.__allocating_init` or `redefinition of module 'SwiftBridging'`, install Swiftly (see [toolchain](#toolchain)) |
-| [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed & signed in | the app reads its OAuth token from the `Claude Code-credentials` Keychain entry | Required at runtime, not build time — the installer just warns if it's missing |
+| A working Swift 6 toolchain | `swift build` to compile the app | Comes with CLT, but if `swift build` errors with `Undefined symbols: Package.__allocating_init` or `redefinition of module 'SwiftBridging'`, install [Swiftly](#toolchain) |
 
-Nothing else. No Xcode.app, no Apple Developer account, no Homebrew.
-
-### Manual install
-
-If you'd rather not pipe a script:
+### Manual build
 
 ```sh
 git clone https://github.com/sdelanos/claude-usage-bar.git
 cd claude-usage-bar
-./setup-cert.sh
+./setup-cert.sh         # one-time, installs a stable local code-signing identity
 ./build.sh
 mv ClaudeUsageBar.app /Applications/
 open /Applications/ClaudeUsageBar.app
@@ -113,6 +119,19 @@ ignores the response body, and reads those headers.
 A poll costs a few tokens out of your quota — negligible compared to a single
 Claude Code interaction.
 
+### Why a separate long-lived token?
+
+Earlier versions of this app read Claude Code's short-lived OAuth access
+token directly from its `Claude Code-credentials` keychain entry. That
+entry gets rewritten every time Claude Code rotates its access token
+(roughly hourly), which resets the item's ACL and re-triggers the
+macOS "Always Allow" prompt forever.
+
+The fix is to authenticate with a token Claude Code doesn't manage. The
+documented `claude setup-token` mint flow produces a 1-year, inference-scoped
+OAuth token that nothing else touches. We store it in our own keychain
+item — owned by us, ACL stable — and the prompt-storm problem is structural.
+
 ## Features
 
 - 5-hour session + 7-day window utilization, both visible in the menu bar
@@ -124,11 +143,13 @@ Claude Code interaction.
 
 ## Privacy
 
-- The OAuth token is read from your Keychain at every poll and put into the
-  `Authorization` header. It's never written to disk and never sent anywhere
-  except `api.anthropic.com`.
-- The only thing the app persists locally (via `UserDefaults`) is your chosen
-  refresh interval and the last notification threshold per window.
+- The long-lived token lives in a keychain item the app owns
+  (`dev.claude-usage-bar.oauth-token`). It's read once per poll and put into
+  the `Authorization` header. It's never written to disk outside the
+  keychain and never sent anywhere except `api.anthropic.com`.
+- The only thing the app persists in plain storage (via `UserDefaults`) is
+  your chosen refresh interval and the last notification threshold per
+  window.
 - No background telemetry, no crash reporting, no analytics.
 
 ## Tests
@@ -137,10 +158,10 @@ Claude Code interaction.
 swift test
 ```
 
-35 tests across six suites covering every piece of pure logic — header
-parsing, JSON token extraction, threshold-crossing decisions, reset-time
-formatting, and the `Usage` helpers. SwiftUI views aren't unit-tested;
-manual verification is the standard for those.
+Pure-logic test coverage across header parsing, token-store round-trips,
+threshold-crossing decisions, reset-time formatting, and the `Usage`
+helpers. SwiftUI views aren't unit-tested; manual verification is the
+standard for those.
 
 ## Layout
 
@@ -150,13 +171,14 @@ Sources/ClaudeUsageBar/
   Models/
     Usage.swift                        # Window / RepresentativeClaim / OverageStatus
   Services/
-    KeychainReader.swift               # Reads the Claude Code OAuth token
+    TokenStore.swift                   # Owns the long-lived token's keychain item
     UsageClient.swift                  # POST /v1/messages + header parser
     UsageService.swift                 # @MainActor store, refresh timer, state machine
     LaunchAtLoginService.swift         # SMAppService toggle
     NotificationService.swift          # 25 % / 10 % threshold notifications
   Views/
     MenuContentView.swift              # Dropdown UI
+    SetupView.swift                    # First-run + re-auth setup card
   Helpers/
     MenuBarIcon.swift                  # Template-icon loader
     ResetFormatter.swift               # "in 32 min" / "Tue 06:00"
@@ -166,7 +188,7 @@ Sources/ClaudeUsageBar/
 
 Tests/ClaudeUsageBarTests/
   UsageClientTests.swift               # header parser
-  KeychainReaderTests.swift            # JSON token extraction
+  TokenStoreTests.swift                # keychain round-trips + format validation
   ResetFormatterTests.swift            # "in 32 min" vs "Tue 06:00"
   UsageHelpersTests.swift              # humanOverageReason, displayPercent
   NotificationDecisionTests.swift      # threshold-crossing rules

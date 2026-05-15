@@ -1,0 +1,76 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write   # required to create releases
+
+jobs:
+  build:
+    name: Build & publish ClaudeUsageBar.app
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcode-select -p
+          swift --version
+
+      - name: Build .app (ad-hoc signed)
+        # No stable identity on CI — build.sh falls back to ad-hoc signing,
+        # which is fine for an unnotarized cask. Users see one Gatekeeper
+        # prompt on first launch; that's standard for community casks.
+        run: ./build.sh
+
+      - name: Verify bundle
+        run: |
+          codesign -dvv ClaudeUsageBar.app
+          test -x ClaudeUsageBar.app/Contents/MacOS/ClaudeUsageBar
+
+      - name: Derive version
+        id: version
+        run: echo "v=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Zip bundle
+        run: |
+          # ditto preserves extended attributes and the bundle layout
+          # codesign cares about. zip(1) silently strips some of them.
+          ditto -ck --keepParent --rsrc ClaudeUsageBar.app \
+              "ClaudeUsageBar-${{ steps.version.outputs.v }}.zip"
+
+      - name: Compute SHA256
+        id: sha
+        run: |
+          ARCHIVE="ClaudeUsageBar-${{ steps.version.outputs.v }}.zip"
+          SUM="$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')"
+          echo "sha256=$SUM" >> "$GITHUB_OUTPUT"
+          echo "Archive sha256: $SUM"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ARCHIVE="ClaudeUsageBar-${{ steps.version.outputs.v }}.zip"
+          gh release create "$GITHUB_REF_NAME" "$ARCHIVE" \
+              --title "$GITHUB_REF_NAME" \
+              --notes "See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md).
+
+          ## Install
+
+          \`\`\`sh
+          brew tap sdelanos/claude-usage-bar
+          brew install --cask claude-usage-bar
+          \`\`\`
+
+          ### Cask metadata
+
+          \`\`\`
+          version: ${{ steps.version.outputs.v }}
+          sha256:  ${{ steps.sha.outputs.sha256 }}
+          \`\`\`"

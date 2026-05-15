@@ -21,7 +21,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Show toolchain
         run: |
@@ -64,7 +64,7 @@ jobs:
     name: swift build -c release (macos-26)
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Build release configuration
         # Catches the dead-code-elimination edge cases that only fail under
         # -O — `swift test` builds in debug.
@@ -74,7 +74,7 @@ jobs:
     name: swiftformat --lint
     runs-on: macos-26
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install SwiftFormat
         run: brew install swiftformat
       - name: Lint

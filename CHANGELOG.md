@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-05-15
+
+### Changed
+- Dropdown polish: brand blue pixel-matched to claude.com (`#4177D0`,
+  previously a brighter `#3C5BE5`); track gray bumped to 10 % opacity for
+  better legibility in light mode; progress bar height 6 → 7 px.
+- Refresh moved to a borderless icon button in the header next to the
+  timestamp — frees the footer row, makes the dropdown feel less heavy.
+- Picker, toggle, and Quit button use `.controlSize(.small)`. Quit is a
+  borderless secondary with `⌘Q` shortcut. Picker auto-sizes via
+  `.fixedSize()` so it doesn't sit awkwardly half-empty.
+
+## [0.2.0] - 2026-05-15
+
 ### Added
 - First-run authentication setup card in the dropdown. Walks the user
   through `claude setup-token`, accepts the resulting long-lived token

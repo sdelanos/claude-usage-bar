@@ -32,9 +32,18 @@ struct MenuContentView: View {
             Spacer()
             if case .loaded(let usage) = service.state {
                 Text(usage.fetchedAt, style: .time)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+            if !isSetupActive {
+                Button {
+                    Task { await service.refresh() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Refresh now")
             }
         }
     }
@@ -93,7 +102,7 @@ struct MenuContentView: View {
     // MARK: - Controls
 
     private var controls: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Refresh every")
                     .font(.subheadline)
@@ -105,7 +114,8 @@ struct MenuContentView: View {
                     Text("30 min").tag(TimeInterval(1800))
                 }
                 .labelsHidden()
-                .frame(width: 110)
+                .controlSize(.small)
+                .fixedSize()
             }
 
             Toggle(isOn: Binding(
@@ -116,6 +126,7 @@ struct MenuContentView: View {
                     .font(.subheadline)
             }
             .toggleStyle(.switch)
+            .controlSize(.small)
 
             if let err = launchAtLogin.lastError {
                 Text(err)
@@ -124,24 +135,18 @@ struct MenuContentView: View {
             }
 
             HStack {
-                if !isSetupActive {
-                    Button {
-                        Task { await service.refresh() }
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                }
-
                 Spacer()
-
-                Button(role: .destructive) {
+                Button {
                     NSApp.terminate(nil)
                 } label: {
-                    Label("Quit", systemImage: "power")
+                    Text("Quit")
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .foregroundStyle(.secondary)
+                .keyboardShortcut("q", modifiers: [.command])
             }
+            .padding(.top, 2)
         }
     }
 }
@@ -158,7 +163,7 @@ private struct UsageRow: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
@@ -187,13 +192,13 @@ private struct CapsuleBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.primary.opacity(0.08))
+                    .fill(Color.claudeTrack)
                 Capsule()
                     .fill(color)
                     .frame(width: geo.size.width * max(0, min(1, fraction)))
             }
         }
-        .frame(height: 6)
+        .frame(height: 7)
     }
 }
 
